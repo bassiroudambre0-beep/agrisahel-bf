@@ -128,7 +128,7 @@
  
  const G = {
    card: { background: COLORS.white, borderRadius: 20, padding: 16, boxShadow: "0 2px 12px rgba(27,67,50,0.08)", border: `1px solid ${COLORS.cream2}` },
-   input: { width: "100%", padding: "13px 16px", borderRadius: 14, border: `2px solid ${COLORS.cream2}`, fontSize: 15, outline: "none", background: COLORS.white, boxSizing: "border-box" },
+   input: { width: "100%", padding: "13px 16px", borderRadius: 14, border: `2px solid ${COLORS.cream2}`, fontSize: 15, outline: "none", background: COLORS.white, boxSizing: "border-box", color: COLORS.dark },
    btn: { width: "100%", padding: 15, borderRadius: 16, border: "none", fontSize: 16, fontWeight: 800, cursor: "pointer", transition: "all 0.15s" },
    btnPrimary: { background: `linear-gradient(135deg,${COLORS.primary},${COLORS.primary2})`, color: COLORS.white },
    btnSecondary: { background: COLORS.grayLight, color: COLORS.dark },
@@ -242,6 +242,7 @@
      @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@700;900&family=Nunito:wght@400;600;700;800&display=swap');
      * { box-sizing: border-box; margin: 0; padding: 0; }
      body { font-family: 'Nunito', sans-serif; background: #F8FAF8; color: #111827; -webkit-tap-highlight-color: transparent; }
+     input, textarea, select { color: #111827 !important; }
      @keyframes spin { to { transform: rotate(360deg); } }
      @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
      @keyframes slideUp { from { opacity:0; transform:translateY(40px); } to { opacity:1; transform:translateY(0); } }
