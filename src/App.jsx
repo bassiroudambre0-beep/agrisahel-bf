@@ -17,7 +17,7 @@ const VILLES_BF = ["Ouagadougou","Bobo-Dioulasso","Koudougou","Banfora","Ouahigo
 const BRUTE_FORCE_MAX = 5;
 
 // ── Sécurité upload images ──
-const IMG_MAX_SIZE_MB = 3;
+const IMG_MAX_SIZE_MB = 5;
 const IMG_MAX_SIZE_BYTES = IMG_MAX_SIZE_MB * 1024 * 1024;
 const IMG_MAX_COUNT = 5;
 const IMG_ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -866,6 +866,7 @@ const MarchePage = ({ user }) => {
             sous_categorie: a.categorie || "Céréales", description: a.description,
             prix: a.prix, ville: a.ville, telephone: a.utilisateurs?.telephone || "",
             auteur: a.utilisateurs?.nom || "Inconnu", auteurId: a.vendeur_id,
+            images: a.images || [],
             date: new Date(a.date_creation).toLocaleDateString("fr-FR"),
           }));
           setListings(norm);
@@ -902,6 +903,7 @@ const MarchePage = ({ user }) => {
         const { data, error } = await publierAnnonce({
           vendeurId: user.id, produit: form.titre, categorie: form.categorie,
           quantite: "", prix: parseInt(form.prix), description: form.description, ville: form.ville,
+          images: images,
         });
         if (data) {
           const updated = newL.map(l => l.id === tempId ? { ...l, id: data.id } : l);
@@ -979,9 +981,20 @@ const MarchePage = ({ user }) => {
                     ))}
                   </div>
                 )}
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => openWhatsApp(l.telephone, `Bonjour, je suis intéressé par votre annonce "${l.titre}" sur AgriSahel BF`)} className="btn-hover" style={{ flex: 1, padding: "10px 0", borderRadius: 12, border: "none", background: "#25D366", color: COLORS.white, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>💬 WhatsApp</button>
-                  {l.auteurId === user.id && <button onClick={() => supprimer(l.id)} style={{ padding: "10px 14px", borderRadius: 12, border: "none", background: "#FEE2E2", color: COLORS.red, cursor: "pointer", fontSize: 14 }}>🗑️</button>}
+                {/* Avis */}
+                {avisMap[l.id] && avisMap[l.id].length > 0 && (
+                  <div style={{ display:"flex", gap:4, alignItems:"center", marginBottom:8 }}>
+                    {[1,2,3,4,5].map(s => <span key={s} style={{ fontSize:14, color: s <= Math.round(avisMap[l.id].reduce((a,v)=>a+v.note,0)/avisMap[l.id].length) ? "#F59E0B" : COLORS.cream2 }}>★</span>)}
+                    <span style={{ fontSize:11, color:COLORS.gray, marginLeft:4 }}>({avisMap[l.id].length} avis)</span>
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 8, flexWrap:"wrap" }}>
+                  <button onClick={() => openWhatsApp(l.telephone, `Bonjour, je suis intéressé par votre annonce "${l.titre}" sur AgriSahel BF`)} className="btn-hover" style={{ flex:1, minWidth:120, padding:"10px 0", borderRadius:12, border:"none", background:"#25D366", color:COLORS.white, fontWeight:800, fontSize:13, cursor:"pointer" }}>💬 WhatsApp</button>
+                  {l.auteurId !== user.id && (
+                    <button onClick={() => { setNoteModal(l); setNoteForm({ note:5, commentaire:"" }); }}
+                      style={{ padding:"10px 12px", borderRadius:12, border:`2px solid ${COLORS.amber}`, background:COLORS.amber+"15", color:COLORS.amber, cursor:"pointer", fontSize:13, fontWeight:700 }}>⭐ Noter</button>
+                  )}
+                  {l.auteurId === user.id && <button onClick={() => supprimer(l.id)} style={{ padding:"10px 14px", borderRadius:12, border:"none", background:"#FEE2E2", color:COLORS.red, cursor:"pointer", fontSize:14 }}>🗑️</button>}
                 </div>
               </Card>
             ))
@@ -1000,6 +1013,39 @@ const MarchePage = ({ user }) => {
           <ImageUploader images={images} setImages={setImages} max={IMG_MAX_COUNT} label="📸 Photos du produit (optionnel)" />
           <button onClick={publier} className="btn-hover" style={{ ...G.btn, ...G.btnPrimary }}>📢 Publier l'annonce</button>
         </Card>
+      )}
+      {/* Modal notation vendeur */}
+      {noteModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:100, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
+          <div style={{ background:COLORS.white, borderRadius:"24px 24px 0 0", padding:24, width:"100%", maxWidth:480 }} className="slide-up">
+            <div style={{ fontWeight:800, fontSize:17, color:COLORS.primary, marginBottom:4 }}>⭐ Noter ce vendeur</div>
+            <div style={{ fontSize:13, color:COLORS.gray, marginBottom:16 }}>{noteModal.auteur} — {noteModal.titre}</div>
+            {/* Étoiles */}
+            <div style={{ display:"flex", gap:8, marginBottom:16, justifyContent:"center" }}>
+              {[1,2,3,4,5].map(s => (
+                <button key={s} onClick={() => setNoteForm(p => ({ ...p, note:s }))}
+                  style={{ fontSize:36, background:"none", border:"none", cursor:"pointer", color: s <= noteForm.note ? "#F59E0B" : COLORS.cream2, transition:"all 0.15s" }}>★</button>
+              ))}
+            </div>
+            <div style={{ textAlign:"center", fontSize:14, fontWeight:800, color:COLORS.amber, marginBottom:14 }}>
+              {["","Très mauvais","Mauvais","Correct","Bien","Excellent !"][noteForm.note]}
+            </div>
+            <Textarea label="Commentaire (optionnel)" value={noteForm.commentaire} onChange={e => setNoteForm(p => ({ ...p, commentaire:e.target.value }))} placeholder="Décrivez votre expérience avec ce vendeur..." maxLength={300} />
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={() => setNoteModal(null)} style={{ ...G.btn, ...G.btnSecondary, flex:1 }}>Annuler</button>
+              <button onClick={async () => {
+                const newAvis = { id: crypto.randomUUID(), auteur: user.nom, auteurId: user.id, note: noteForm.note, commentaire: noteForm.commentaire, date: new Date().toLocaleDateString("fr-FR") };
+                const current = avisMap[noteModal.id] || [];
+                if (current.find(a => a.auteurId === user.id)) { toast.error("Vous avez déjà noté ce vendeur"); setNoteModal(null); return; }
+                setAvisMap(p => ({ ...p, [noteModal.id]: [...current, newAvis] }));
+                setNoteModal(null);
+                toast.success("Avis publié ! ⭐");
+              }} className="btn-hover" style={{ ...G.btn, background:COLORS.amber, color:COLORS.white, flex:1 }}>
+                ✅ Publier l'avis
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1031,7 +1077,9 @@ const CommunautePage = ({ user }) => {
         if (data && data.length > 0) {
           const norm = data.map(p => ({
             id: p.id, type: p.categorie || "astuce", texte: p.texte,
+            images: p.images || [],
             auteur: p.utilisateurs?.nom || "Inconnu", auteurId: p.auteur_id,
+            photoUrl: p.utilisateurs?.photo_url || null,
             date: new Date(p.date_creation).toLocaleDateString("fr-FR"),
           }));
           setPosts(norm); storage.set(KEYS.POSTS, norm);
@@ -1051,7 +1099,7 @@ const CommunautePage = ({ user }) => {
     toast.success("Post publié !");
     if (estEnLigne() && user.id) {
       try {
-        const { data, error } = await publierPost({ auteurId: user.id, categorie: form.type, texte: sanitize(form.texte, 500), ville: user.ville });
+        const { data, error } = await publierPost({ auteurId: user.id, categorie: form.type, texte: sanitize(form.texte, 500), ville: user.ville, images: postImages });
         if (data) { const up = newP.map(p => p.id === tempId ? { ...p, id: data.id } : p); setPosts(up); storage.set(KEYS.POSTS, up); }
         if (error) console.warn("Post Supabase:", error);
       } catch (e) { sauvegarderOffline("INSERT", "posts", { categorie: form.type, texte: form.texte, ville: user.ville }); }
@@ -1072,14 +1120,25 @@ const CommunautePage = ({ user }) => {
     catch { toast.error("Impossible de copier"); }
   };
 
+  const [filtre, setFiltre] = useState("all");
+  const filtered = filtre === "all" ? posts : posts.filter(p => p.type === filtre);
+
   return (
     <div style={G.page} className="fade-in">
-      <button onClick={() => setShowForm(p => !p)} className="btn-hover" style={{ ...G.btn, ...G.btnPrimary, marginBottom: 16 }}>{showForm ? "✕ Annuler" : "✏️ Nouveau post"}</button>
+      {/* Bouton nouveau post */}
+      <button onClick={() => setShowForm(p => !p)} className="btn-hover"
+        style={{ ...G.btn, ...G.btnPrimary, marginBottom: 14 }}>
+        {showForm ? "✕ Annuler" : "✏️ Nouveau post"}
+      </button>
+
+      {/* Formulaire nouveau post */}
       {showForm && (
-        <Card style={{ marginBottom: 16, border: `2px solid ${COLORS.primary}30` }}>
+        <Card style={{ marginBottom: 14, border: `2px solid ${COLORS.primary}30` }}>
+          <div style={{ ...G.sectionTitle, marginBottom: 12 }}>Nouveau post</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
             {POST_TYPES.map(t => (
-              <button key={t.id} onClick={() => setForm(p => ({ ...p, type: t.id }))} style={{ padding: "10px 8px", borderRadius: 12, border: `2px solid ${form.type === t.id ? t.color : COLORS.cream2}`, background: form.type === t.id ? t.color + "15" : COLORS.white, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+              <button key={t.id} onClick={() => setForm(p => ({ ...p, type: t.id }))}
+                style={{ padding: "10px 8px", borderRadius: 12, border: `2px solid ${form.type === t.id ? t.color : COLORS.cream2}`, background: form.type === t.id ? t.color+"15" : COLORS.white, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, boxSizing:"border-box" }}>
                 <span style={{ fontSize: 18 }}>{t.icon}</span>
                 <span style={{ fontSize: 11, fontWeight: 700, color: form.type === t.id ? t.color : COLORS.gray }}>{t.label}</span>
               </button>
@@ -1090,19 +1149,45 @@ const CommunautePage = ({ user }) => {
           <button onClick={publier} className="btn-hover" style={{ ...G.btn, ...G.btnPrimary }}>📢 Publier</button>
         </Card>
       )}
-      {posts.length === 0 ? <EmptyState emoji="👥" title="Aucun post" subtitle="Soyez le premier à partager !" /> :
-        posts.map(post => {
+
+      {/* Filtres par catégorie */}
+      <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:8, marginBottom:14 }}>
+        <button onClick={() => setFiltre("all")} style={{ padding:"6px 14px", borderRadius:20, border:`2px solid ${filtre==="all"?COLORS.primary:COLORS.cream2}`, background:filtre==="all"?COLORS.primary:COLORS.white, color:filtre==="all"?COLORS.white:COLORS.gray, fontSize:12, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0 }}>
+          Tous ({posts.length})
+        </button>
+        {POST_TYPES.map(t => {
+          const count = posts.filter(p => p.type === t.id).length;
+          return (
+            <button key={t.id} onClick={() => setFiltre(t.id)}
+              style={{ padding:"6px 12px", borderRadius:20, border:`2px solid ${filtre===t.id?t.color:COLORS.cream2}`, background:filtre===t.id?t.color:COLORS.white, color:filtre===t.id?COLORS.white:COLORS.gray, fontSize:12, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0, display:"flex", alignItems:"center", gap:4 }}>
+              {t.icon} {t.label} {count > 0 && <span style={{ background:"rgba(255,255,255,0.3)", borderRadius:10, padding:"1px 6px", fontSize:10 }}>{count}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Liste des posts filtrés */}
+      {filtered.length === 0
+        ? <EmptyState emoji={filtre==="all"?"👥":POST_TYPES.find(t=>t.id===filtre)?.icon||"📝"}
+            title={filtre==="all"?"Aucun post":"Aucun post dans cette catégorie"}
+            subtitle="Soyez le premier à partager !" />
+        : filtered.map(post => {
           const pt = POST_TYPES.find(t => t.id === post.type);
           return (
             <Card key={post.id} style={{ marginBottom: 12, borderLeft: `4px solid ${pt?.color}` }}>
-              <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
-                <span style={{ fontSize: 24 }}>{pt?.icon}</span>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: pt?.color }}>{pt?.label}</div>
-                  <div style={{ fontSize: 11, color: COLORS.gray }}>{post.auteur} • {post.date}</div>
+              {/* Auteur */}
+              <div style={{ display:"flex", gap:10, marginBottom:8, alignItems:"center" }}>
+                <div style={{ width:36, height:36, borderRadius:"50%", overflow:"hidden", background:COLORS.primary+"20", border:`2px solid ${COLORS.cream2}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  {post.photoUrl ? <img src={post.photoUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : <span style={{ fontSize:16 }}>{pt?.icon}</span>}
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:800, color:pt?.color }}>{pt?.label}</div>
+                  <div style={{ fontSize:11, color:COLORS.gray }}>{post.auteur} • {post.date}</div>
                 </div>
               </div>
-              <div style={{ fontSize: 14, color: COLORS.dark, lineHeight: 1.6, marginBottom: 10 }}>{post.texte}</div>
+              {/* Texte */}
+              <div style={{ fontSize:14, color:COLORS.dark, lineHeight:1.6, marginBottom:10 }}>{post.texte}</div>
+              {/* Images */}
               {post.images && post.images.length > 0 && (
                 <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(post.images.length,3)},1fr)`, gap:6, marginBottom:10 }}>
                   {post.images.slice(0,3).map((img,i) => (
@@ -1112,9 +1197,10 @@ const CommunautePage = ({ user }) => {
                   ))}
                 </div>
               )}
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => partager(post)} style={{ flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${COLORS.cream2}`, background: COLORS.grayLight, color: COLORS.gray, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>📋 Copier</button>
-                {post.auteurId === user.id && <button onClick={() => supprimer(post.id)} style={{ padding: "8px 12px", borderRadius: 10, border: "none", background: "#FEE2E2", color: COLORS.red, cursor: "pointer", fontSize: 14 }}>🗑️</button>}
+              {/* Actions */}
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={() => partager(post)} style={{ flex:1, padding:"8px 0", borderRadius:10, border:`1px solid ${COLORS.cream2}`, background:COLORS.grayLight, color:COLORS.gray, cursor:"pointer", fontSize:13, fontWeight:700 }}>📋 Copier</button>
+                {post.auteurId === user.id && <button onClick={() => supprimer(post.id)} style={{ padding:"8px 12px", borderRadius:10, border:"none", background:"#FEE2E2", color:COLORS.red, cursor:"pointer", fontSize:14 }}>🗑️</button>}
               </div>
             </Card>
           );
