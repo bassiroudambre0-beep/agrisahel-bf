@@ -15,6 +15,29 @@ import {
 const APP_VERSION = "4.0";
 const VILLES_BF = ["Ouagadougou","Bobo-Dioulasso","Koudougou","Banfora","Ouahigouya","Kaya","Dori","Fada N'Gourma","Dédougou","Tenkodogo","Ziniaré","Léo","Gaoua","Kongoussi"];
 const BRUTE_FORCE_MAX = 5;
+
+// ── Sécurité upload images ──
+const IMG_MAX_SIZE_MB = 3;
+const IMG_MAX_SIZE_BYTES = IMG_MAX_SIZE_MB * 1024 * 1024;
+const IMG_MAX_COUNT = 5;
+const IMG_ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const IMG_ALLOWED_EXTS = [".jpg", ".jpeg", ".png", ".webp"];
+
+// Vérification magic bytes (vrais octets du fichier)
+const checkMagicBytes = (file) => new Promise(resolve => {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const arr = new Uint8Array(e.target.result);
+    const isJPEG = arr[0]===0xFF && arr[1]===0xD8 && arr[2]===0xFF;
+    const isPNG  = arr[0]===0x89 && arr[1]===0x50 && arr[2]===0x4E && arr[3]===0x47;
+    const isWEBP = arr[0]===0x52 && arr[1]===0x49 && arr[2]===0x46 && arr[3]===0x46;
+    resolve(isJPEG || isPNG || isWEBP);
+  };
+  reader.readAsArrayBuffer(file.slice(0, 4));
+});
+
+// Sanitiser nom de fichier (anti-XSS)
+const sanitizeFilename = (name) => name.replace(/[^a-zA-Z0-9._\-]/g, "_").slice(0, 60);
 const BRUTE_FORCE_LOCKOUT_MS = 15 * 60 * 1000; // 15 min
 const WEATHER_CACHE_MS = 30 * 60 * 1000; // 30 min
 const WEATHER_TIMEOUT_MS = 9000; // 9s
@@ -157,6 +180,76 @@ const ToastContainer = () => {
 // ErrorBoundary correctement implémenté
 // Note: utilisé via TabErrorBoundary (functional) ci-dessous
 
+// ════════════════════════════════════════════════════════
+// 📸 COMPOSANT IMAGE UPLOADER RÉUTILISABLE
+// Sécurisé : magic bytes + taille + type + anti-XSS
+// ════════════════════════════════════════════════════════
+const ImageUploader = ({ images, setImages, max = 3, label = "Ajouter des photos (optionnel)" }) => {
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const ref = useRef();
+  const lastUpload = useRef(0);
+
+  const handle = async (e) => {
+    setError("");
+    const files = Array.from(e.target.files);
+    e.target.value = "";
+    // Rate limit — 2 secondes entre uploads
+    if (Date.now() - lastUpload.current < 2000) { setError("⏳ Attendez avant d'ajouter d'autres photos."); return; }
+    lastUpload.current = Date.now();
+    const slots = max - images.length;
+    if (slots <= 0) { setError(`Maximum ${max} photos atteint.`); return; }
+    setLoading(true);
+    for (const file of files.slice(0, slots)) {
+      if (!IMG_ALLOWED_TYPES.includes(file.type)) { setError(`❌ Format refusé. JPG, PNG, WEBP uniquement.`); continue; }
+      const ext = "." + file.name.split(".").pop().toLowerCase();
+      if (!IMG_ALLOWED_EXTS.includes(ext)) { setError(`❌ Extension refusée.`); continue; }
+      if (file.size > IMG_MAX_SIZE_BYTES) { setError(`❌ Max ${IMG_MAX_SIZE_MB}MB par image. Celle-ci fait ${(file.size/1024/1024).toFixed(1)}MB.`); continue; }
+      const valid = await checkMagicBytes(file);
+      if (!valid) { setError("❌ Fichier invalide ou corrompu."); continue; }
+      const safeName = sanitizeFilename(file.name);
+      const reader = new FileReader();
+      reader.onload = ev => setImages(p => [...p, { id: crypto.randomUUID(), url: ev.target.result, name: safeName }]);
+      reader.readAsDataURL(file);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label style={G.label}>{label} ({images.length}/{max})</label>
+      {error && <div style={{ background:"#FEE2E2", borderRadius:10, padding:"8px 12px", marginBottom:8, fontSize:12, color:COLORS.red, fontWeight:700 }}>{error}</div>}
+      {images.length > 0 && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:10 }}>
+          {images.map(img => (
+            <div key={img.id} style={{ position:"relative", borderRadius:12, overflow:"hidden", aspectRatio:"1", border:`2px solid ${COLORS.cream2}` }}>
+              <img src={img.url} alt={img.name} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+              <button onClick={() => setImages(p => p.filter(x => x.id !== img.id))}
+                style={{ position:"absolute", top:4, right:4, width:22, height:22, borderRadius:"50%", background:"rgba(0,0,0,0.65)", color:"white", border:"none", cursor:"pointer", fontSize:12 }}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {images.length < max && (
+        <>
+          <input ref={ref} type="file" accept=".jpg,.jpeg,.png,.webp" multiple onChange={handle} style={{ display:"none" }} />
+          <button type="button" onClick={() => ref.current?.click()}
+            style={{ width:"100%", border:`2px dashed ${COLORS.primary2}`, borderRadius:14, padding:"14px 12px", background:COLORS.primary+"08", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:6, boxSizing:"border-box" }}>
+            {loading
+              ? <span className="pulse" style={{ fontSize:13, color:COLORS.primary2 }}>⏳ Vérification en cours...</span>
+              : <>
+                  <span style={{ fontSize:28 }}>📸</span>
+                  <span style={{ fontSize:13, fontWeight:700, color:COLORS.primary2 }}>Ajouter des photos</span>
+                  <span style={{ fontSize:11, color:COLORS.gray }}>JPG · PNG · WEBP · Max {IMG_MAX_SIZE_MB}MB · {max} photos max</span>
+                </>
+            }
+          </button>
+        </>
+      )}
+    </div>
+  );
+};
+
 const TabErrorBoundary = ({ children, tabName }) => {
   const [error, setError] = useState(null);
   if (error) return (
@@ -232,6 +325,7 @@ const AuthPage = ({ onAuth }) => {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [showMdp, setShowMdp] = useState(false);
+  const [profilePhoto, setProfilePhoto] = useState(null);
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const tel = normalizePhone(form.telephone);
@@ -288,6 +382,7 @@ const AuthPage = ({ onAuth }) => {
       const newUser = {
         id: crypto.randomUUID(), nom: form.nom.trim(), telephone: tel,
         ville: form.ville, mdpHash: hash, verifie: true,
+        photoUrl: profilePhoto || null,
         dateInscription: new Date().toLocaleDateString("fr-FR"),
         reputation: { score: 0, nbAvis: 0 },
       };
@@ -296,7 +391,7 @@ const AuthPage = ({ onAuth }) => {
         try {
           const { data, error } = await inscrireUtilisateur({
             telephone: tel, nom: form.nom.trim(), ville: form.ville,
-            activites: [], mdpHash: hash, photoUrl: null,
+            activites: [], mdpHash: hash, photoUrl: profilePhoto || null,
           });
           if (error) { setErr(`❌ ${error}`); return; }
           if (data) newUser.id = data.id;
@@ -356,6 +451,31 @@ const AuthPage = ({ onAuth }) => {
             <button onClick={() => setShowMdp(p => !p)} style={{ position: "absolute", right: 14, top: 36, background: "none", border: "none", cursor: "pointer", fontSize: 18 }}>{showMdp ? "🙈" : "👁️"}</button>
           </div>
           {mode === "register" && <Input label="Confirmer le mot de passe" value={form.mdp2} onChange={e => set("mdp2", e.target.value)} type="password" placeholder="Répétez le mot de passe" />}
+          {mode === "register" && (
+            <div style={{ marginBottom: 16 }}>
+              <label style={G.label}>📸 Photo de profil (optionnel)</label>
+              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                <div style={{ width:60, height:60, borderRadius:"50%", overflow:"hidden", border:`3px solid ${COLORS.cream2}`, background:COLORS.grayLight, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  {profilePhoto ? <img src={profilePhoto} alt="profil" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : <span style={{ fontSize:24 }}>👤</span>}
+                </div>
+                <label style={{ flex:1, padding:"10px 14px", borderRadius:12, border:`2px dashed ${COLORS.cream2}`, background:COLORS.grayLight, cursor:"pointer", fontSize:13, fontWeight:700, color:COLORS.primary2, textAlign:"center" }}>
+                  {profilePhoto ? "Changer la photo" : "Choisir une photo"}
+                  <input type="file" accept=".jpg,.jpeg,.png,.webp" onChange={async e => {
+                    const file = e.target.files[0]; if (!file) return;
+                    if (file.size > IMG_MAX_SIZE_BYTES) { toast.error(`Photo trop lourde. Max ${IMG_MAX_SIZE_MB}MB`); return; }
+                    if (!IMG_ALLOWED_TYPES.includes(file.type)) { toast.error("Format non supporté. JPG, PNG, WEBP."); return; }
+                    const valid = await checkMagicBytes(file);
+                    if (!valid) { toast.error("Fichier invalide."); return; }
+                    const reader = new FileReader();
+                    reader.onload = ev => setProfilePhoto(ev.target.result);
+                    reader.readAsDataURL(file);
+                    e.target.value = "";
+                  }} style={{ display:"none" }} />
+                </label>
+                {profilePhoto && <button onClick={() => setProfilePhoto(null)} style={{ background:"#FEE2E2", border:"none", borderRadius:10, padding:"8px 10px", cursor:"pointer", fontSize:14, color:COLORS.red }}>✕</button>}
+              </div>
+            </div>
+          )}
           {/* Honeypot anti-bot */}
           <input value={honeypot} onChange={e => setHoneypot(e.target.value)} tabIndex={-1} style={{ position: "absolute", left: -9999, width: 1, height: 1, opacity: 0 }} aria-hidden="true" />
           <button onClick={submit} disabled={loading} className="btn-hover" style={{ ...G.btn, ...G.btnPrimary, marginTop: 8, opacity: loading ? 0.7 : 1 }}>
@@ -384,7 +504,12 @@ const TopBar = ({ title, user, onLogout }) => {
         <div style={{ fontSize: 11, color: online ? COLORS.green : COLORS.orange, fontWeight: 700 }}>{online ? "🟢 En ligne" : "📵 Hors ligne"}</div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <div style={{ fontSize: 12, color: COLORS.gray, fontWeight: 600 }}>{user?.nom?.split(" ")[0]}</div>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <div style={{ width:32, height:32, borderRadius:"50%", overflow:"hidden", background:COLORS.primary+"20", border:`2px solid ${COLORS.primary}30`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            {user?.photoUrl ? <img src={user.photoUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : <span style={{ fontSize:14, fontWeight:900, color:COLORS.primary }}>{user?.nom?.[0]?.toUpperCase()}</span>}
+          </div>
+          <div style={{ fontSize: 12, color: COLORS.gray, fontWeight: 600 }}>{user?.nom?.split(" ")[0]}</div>
+        </div>
         <button onClick={onLogout} style={{ background: COLORS.grayLight, border: "none", borderRadius: 10, padding: "6px 10px", cursor: "pointer", fontSize: 16 }}>🚪</button>
       </div>
     </div>
@@ -720,7 +845,7 @@ const JournalPage = ({ user, journal, setJournal }) => {
 // ════════════════════════════════════════════════════════
 const CATEGORIES_MARCHE = [
   { id: "agriculture", label: "Agriculture", icon: "🌾", subs: ["Céréales","Légumes","Fruits","Semences","Engrais","Pesticides"] },
-  { id: "elevage", label: "Élevage", icon: "🐄", subs: ["Bovins","Ovins","Caprins","Volaille","Porcins","Aliments bétail"] },
+  { id: "elevage", label: "Élevage", icon: "🐄", subs: ["Bovins","Ovins","Caprins","Volaille","Porcins","Pisciculture","Aliments bétail"] },
   { id: "services", label: "Services", icon: "🔧", subs: ["Location matériel","Transport","Labour","Irrigation","Formation","Autre"] },
   { id: "recherche", label: "Recherche", icon: "🛒", subs: ["Cherche terrain","Cherche semences","Cherche main-d'œuvre","Cherche financement"] },
 ];
@@ -757,18 +882,19 @@ const MarchePage = ({ user }) => {
   const [subFilter, setSubFilter] = useState("all");
   const [villeFilter, setVilleFilter] = useState("all");
   const [form, setForm] = useState({ titre: "", categorie: "agriculture", sous_categorie: "Céréales", description: "", prix: "", ville: user.ville, telephone: user.telephone });
-
+  const [images, setImages] = useState([]);
   const save = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const publier = async () => {
     if (!form.titre.trim() || !form.prix) { toast.error("Titre et prix obligatoires"); return; }
     const tempId = crypto.randomUUID();
-    const listing = { id: tempId, ...form, prix: parseInt(form.prix), auteur: user.nom, auteurId: user.id, date: new Date().toLocaleDateString("fr-FR"), createdAt: Date.now() };
+    const listing = { id: tempId, ...form, prix: parseInt(form.prix), images, auteur: user.nom, auteurId: user.id, date: new Date().toLocaleDateString("fr-FR"), createdAt: Date.now() };
     const newL = [listing, ...listings];
     setListings(newL);
     storage.set(KEYS.LISTINGS, newL);
     setTab("voir");
     setForm(p => ({ ...p, titre: "", description: "", prix: "" }));
+    setImages([]);
     toast.success("Annonce publiée !");
     // Sync Supabase
     if (estEnLigne() && user.id) {
@@ -844,6 +970,15 @@ const MarchePage = ({ user }) => {
                   <div style={{ fontWeight: 900, fontSize: 16, color: COLORS.primary }}>{(l.prix || 0).toLocaleString()} FCFA</div>
                 </div>
                 {l.description && <div style={{ fontSize: 13, color: COLORS.gray, marginBottom: 10 }}>{l.description}</div>}
+                {l.images && l.images.length > 0 && (
+                  <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(l.images.length, 3)},1fr)`, gap:6, marginBottom:10 }}>
+                    {l.images.slice(0,3).map((img,i) => (
+                      <div key={img.id||i} style={{ borderRadius:10, overflow:"hidden", aspectRatio:"1" }}>
+                        <img src={img.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div style={{ display: "flex", gap: 8 }}>
                   <button onClick={() => openWhatsApp(l.telephone, `Bonjour, je suis intéressé par votre annonce "${l.titre}" sur AgriSahel BF`)} className="btn-hover" style={{ flex: 1, padding: "10px 0", borderRadius: 12, border: "none", background: "#25D366", color: COLORS.white, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>💬 WhatsApp</button>
                   {l.auteurId === user.id && <button onClick={() => supprimer(l.id)} style={{ padding: "10px 14px", borderRadius: 12, border: "none", background: "#FEE2E2", color: COLORS.red, cursor: "pointer", fontSize: 14 }}>🗑️</button>}
@@ -862,6 +997,7 @@ const MarchePage = ({ user }) => {
           <Select label="Ville" value={form.ville} onChange={e => save("ville", e.target.value)} options={VILLES_BF} />
           <Input label="Votre numéro WhatsApp" value={form.telephone} onChange={e => save("telephone", e.target.value)} type="tel" placeholder="70 12 34 56" />
           <Textarea label="Description (optionnel)" value={form.description} onChange={e => save("description", sanitize(e.target.value, 500))} placeholder="Détails sur votre annonce..." maxLength={500} />
+          <ImageUploader images={images} setImages={setImages} max={IMG_MAX_COUNT} label="📸 Photos du produit (optionnel)" />
           <button onClick={publier} className="btn-hover" style={{ ...G.btn, ...G.btnPrimary }}>📢 Publier l'annonce</button>
         </Card>
       )}
@@ -885,6 +1021,7 @@ const CommunautePage = ({ user }) => {
   const [posts, setPosts] = useState(() => storage.get(KEYS.POSTS, []));
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ type: "astuce", texte: "" });
+  const [postImages, setPostImages] = useState([]);
 
   useEffect(() => {
     const charger = async () => {
@@ -907,10 +1044,10 @@ const CommunautePage = ({ user }) => {
   const publier = async () => {
     if (!form.texte.trim()) { toast.error("Contenu obligatoire"); return; }
     const tempId = crypto.randomUUID();
-    const post = { id: tempId, ...form, texte: sanitize(form.texte, 500), auteur: user.nom, auteurId: user.id, date: new Date().toLocaleDateString("fr-FR"), createdAt: Date.now() };
+    const post = { id: tempId, ...form, texte: sanitize(form.texte, 500), images: postImages, auteur: user.nom, auteurId: user.id, date: new Date().toLocaleDateString("fr-FR"), createdAt: Date.now() };
     const newP = [post, ...posts];
     setPosts(newP); storage.set(KEYS.POSTS, newP);
-    setShowForm(false); setForm({ type: "astuce", texte: "" });
+    setShowForm(false); setForm({ type: "astuce", texte: "" }); setPostImages([]);
     toast.success("Post publié !");
     if (estEnLigne() && user.id) {
       try {
@@ -949,6 +1086,7 @@ const CommunautePage = ({ user }) => {
             ))}
           </div>
           <Textarea label="Votre message" value={form.texte} onChange={e => setForm(p => ({ ...p, texte: e.target.value }))} placeholder="Partagez une info utile avec la communauté..." maxLength={500} />
+          <ImageUploader images={postImages} setImages={setPostImages} max={3} label="📸 Photos (optionnel)" />
           <button onClick={publier} className="btn-hover" style={{ ...G.btn, ...G.btnPrimary }}>📢 Publier</button>
         </Card>
       )}
@@ -965,6 +1103,15 @@ const CommunautePage = ({ user }) => {
                 </div>
               </div>
               <div style={{ fontSize: 14, color: COLORS.dark, lineHeight: 1.6, marginBottom: 10 }}>{post.texte}</div>
+              {post.images && post.images.length > 0 && (
+                <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(post.images.length,3)},1fr)`, gap:6, marginBottom:10 }}>
+                  {post.images.slice(0,3).map((img,i) => (
+                    <div key={img.id||i} style={{ borderRadius:10, overflow:"hidden", aspectRatio:"1" }}>
+                      <img src={img.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                    </div>
+                  ))}
+                </div>
+              )}
               <div style={{ display: "flex", gap: 8 }}>
                 <button onClick={() => partager(post)} style={{ flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${COLORS.cream2}`, background: COLORS.grayLight, color: COLORS.gray, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>📋 Copier</button>
                 {post.auteurId === user.id && <button onClick={() => supprimer(post.id)} style={{ padding: "8px 12px", borderRadius: 10, border: "none", background: "#FEE2E2", color: COLORS.red, cursor: "pointer", fontSize: 14 }}>🗑️</button>}
