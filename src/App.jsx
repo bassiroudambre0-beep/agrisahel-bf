@@ -884,6 +884,9 @@ const MarchePage = ({ user }) => {
   const [villeFilter, setVilleFilter] = useState("all");
   const [form, setForm] = useState({ titre: "", categorie: "agriculture", sous_categorie: "Céréales", description: "", prix: "", ville: user.ville, telephone: user.telephone });
   const [images, setImages] = useState([]);
+  const [noteModal, setNoteModal] = useState(null);
+  const [noteForm, setNoteForm] = useState({ note: 5, commentaire: "" });
+  const [avisMap, setAvisMap] = useState({});
   const save = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const publier = async () => {
