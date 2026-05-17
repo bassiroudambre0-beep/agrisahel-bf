@@ -268,7 +268,7 @@ const TabErrorBoundary = ({ children, tabName }) => {
 // UI COMPONENTS
 // ════════════════════════════════════════════════════════
 
-const Card = ({ children, style = {} }) => <div style={{ ...G.card, width: "100%", maxWidth: "100%", overflow: "hidden", boxSizing: "border-box", ...style }}>{children}</div>;
+const Card = ({ children, style = {} }) => <div style={{ ...G.card, width: "100%", maxWidth: "480", overflow: "hidden", boxSizing: "border-box", ...style }}>{children}</div>;
 const Badge = ({ children, color = COLORS.primary }) => (
   <span style={{ background: color + "20", color, fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 20 }}>{children}</span>
 );
@@ -431,7 +431,7 @@ const AuthPage = ({ onAuth }) => {
 
   if (step === "otp") return (
     <div style={{ minHeight: "100vh", background: `linear-gradient(160deg,${COLORS.primary} 0%,${COLORS.primary2} 100%)`, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div style={{ background: COLORS.white, borderRadius: 28, padding: 24, width: "100%", maxWidth: "100%" }} className="slide-up">
+      <div style={{ background: COLORS.cream, borderRadius: 28, padding: 24, width: "100%", maxWidth: "480px" }} className="slide-up">
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <div style={{ fontSize: 48 }}>📱</div>
           <h2 style={{ fontFamily: "Fraunces,serif", fontSize: 24, color: COLORS.primary, margin: "12px 0 6px" }}>Code de vérification</h2>
@@ -459,13 +459,13 @@ const AuthPage = ({ onAuth }) => {
 
   return (
     <div style={{ minHeight: "100vh", background: `linear-gradient(160deg,${COLORS.primary} 0%,${COLORS.primary2} 60%,${COLORS.amber} 100%)`, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div style={{ width: "100%", maxWidth: "100%" }} className="slide-up">
+      <div style={{ width: "100%", maxWidth: "480px" }} className="slide-up">
         <div style={{ textAlign: "center", marginBottom: 28 }}>
           <div style={{ fontSize: 56 }}>🌾</div>
           <h1 style={{ fontFamily: "Fraunces,serif", fontSize: 32, color: COLORS.white, margin: "10px 0 4px" }}>AgriSahel BF</h1>
           <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 14 }}>Agriculture intelligente pour le Burkina Faso</p>
         </div>
-        <div style={{ background: COLORS.white, borderRadius: 28, padding: "28px 24px" }}>
+        <div style={{ background: COLORS.cream, borderRadius: 28, padding: "28px 24px" }}>
           <div style={{ display: "flex", background: COLORS.grayLight, borderRadius: 14, padding: 4, marginBottom: 24 }}>
             {[["login","Se connecter"],["register","S'inscrire"]].map(([m, l]) => (
               <button key={m} onClick={() => { setMode(m); setErr(""); }} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", fontWeight: 800, fontSize: 14, cursor: "pointer", background: mode === m ? COLORS.white : "transparent", color: mode === m ? COLORS.primary : COLORS.gray, boxShadow: mode === m ? "0 2px 8px rgba(0,0,0,0.1)" : "none", transition: "all 0.2s" }}>{l}</button>

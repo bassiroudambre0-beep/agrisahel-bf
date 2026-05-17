@@ -77,7 +77,7 @@ export const G = {
    page: {
   padding: "12px 12px 20px",
   width: "100%",
-  maxWidth: "100%",
+  maxWidth: "480px",
   boxSizing: "border-box",
   overflowX: "hidden",
   minHeight: "calc(100vh - 80px)",
