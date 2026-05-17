@@ -78,7 +78,6 @@ export const G = {
     padding: "12px 16px 20px",
     width: "100%",
     boxSizing: "border-box",
-    overflowX: "hidden",
     minHeight: "calc(100vh - 80px)",
   },
 };
@@ -118,27 +117,9 @@ export const GLOBAL_CSS = `
   .slide-up { animation: slideUp 0.35s ease; }
   .pulse { animation: pulse 1.5s ease infinite; }
   .btn-hover:active { transform: scale(0.97); }
-  ::-webkit-scrollbar { width: 3px; }
   /* MOBILE OPTIMISATION ANDROID */
-body, html {
-  margin: 0;
-  padding: 0;
-  overflow-x: hidden;
-}
-
-.content-wrapper {
-  padding-bottom: 100px;
-}
-
-/* Évite le zoom sur les inputs Android */
-input, select, textarea {
-  font-size: 16px !important;
-}
-
-/* Meilleur scroll */
-::-webkit-scrollbar {
-  display: none;
-}
-  ::-webkit-scrollbar-thumb { background: #C7D9CF; border-radius: 4px; }
-
+  body, html { margin: 0; padding: 0; overflow-x: hidden; }
+  .content-wrapper { padding-bottom: 100px; }
+  input, select, textarea { font-size: 16px !important; }
+  ::-webkit-scrollbar { display: none; }
 `;
