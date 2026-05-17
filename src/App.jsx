@@ -431,7 +431,7 @@ const AuthPage = ({ onAuth }) => {
 
   if (step === "otp") return (
     <div style={{ minHeight: "100vh", background: `linear-gradient(160deg,${COLORS.primary} 0%,${COLORS.primary2} 100%)`, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div style={{ background: COLORS.cream, borderRadius: 28, padding: 24, width: "100%", maxWidth: "480px" }} className="slide-up">
+      <div style={{ background: COLORS.cream, borderRadius: 28, padding: 24, width: "400px", maxWidth: "480px" }} className="slide-up">
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <div style={{ fontSize: 48 }}>📱</div>
           <h2 style={{ fontFamily: "Fraunces,serif", fontSize: 24, color: COLORS.primary, margin: "12px 0 6px" }}>Code de vérification</h2>
@@ -459,10 +459,10 @@ const AuthPage = ({ onAuth }) => {
 
   return (
     <div style={{ minHeight: "100vh", background: `linear-gradient(160deg,${COLORS.primary} 0%,${COLORS.primary2} 60%,${COLORS.amber} 100%)`, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div style={{ width: "100%", maxWidth: "480px" }} className="slide-up">
+      <div style={{ width: "400px", maxWidth: "480px" }} className="slide-up">
         <div style={{ textAlign: "center", marginBottom: 28 }}>
           <div style={{ fontSize: 56 }}>🌾</div>
-          <h1 style={{ fontFamily: "Fraunces,serif", fontSize: 32, color: COLORS.white, margin: "10px 0 4px" }}>AgriSahel BF</h1>
+          <h1 style={{ fontFamily: "Fraunces,serif", fontSize: 32, color: COLORS.white, margin: "0 auto" }}>AgriSahel BF</h1>
           <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 14 }}>Agriculture intelligente pour le Burkina Faso</p>
         </div>
         <div style={{ background: COLORS.cream, borderRadius: 28, padding: "28px 24px" }}>
@@ -512,7 +512,7 @@ const AuthPage = ({ onAuth }) => {
             </div>
           )}
           {/* Honeypot anti-bot */}
-          <input value={honeypot} onChange={e => setHoneypot(e.target.value)} tabIndex={-1} style={{ position: "absolute", left: -9999, width: 1, height: 1, opacity: 0 }} aria-hidden="true" />
+          <input value={honeypot} onChange={e => setHoneypot(e.target.value)} tabIndex={-1} style={{ position: "relative", left: -9999, width: 1, height: 1, opacity: 0 }} aria-hidden="true" />
           <button onClick={submit} disabled={loading} className="btn-hover" style={{ ...G.btn, ...G.btnPrimary, marginTop: 8, opacity: loading ? 0.7 : 1 }}>
             {loading ? "⏳ Chargement..." : mode === "register" ? "📱 Créer mon compte" : "🔐 Se connecter"}
           </button>
@@ -576,8 +576,8 @@ const BottomNav = ({ active, onChange }) => {
       {/* Menu Plus */}
       {showMore && (
         <div style={{
-          position: "fixed", bottom: 72, left: "50%", transform: "translateX(-50%)",
-          width: "100%", maxWidth: "480px", zIndex: 999,
+          position: "relative", bottom: 72, left: "50%", transform: "translateX(-50%)",
+          width: "400px", maxWidth: "480px", zIndex: 999,
           background: COLORS.white, borderTop: `1px solid ${COLORS.cream2}`,
           padding: "12px 8px", display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 4,
           boxShadow: "0 -4px 20px rgba(0,0,0,0.15)"
@@ -593,9 +593,9 @@ const BottomNav = ({ active, onChange }) => {
       )}
       {/* Nav principale */}
       <nav style={{
-        position: "fixed", bottom: 0,
+        position: "relative", bottom: 0,
         left: "50%", transform: "translateX(-50%)",
-        width: "100%", maxWidth: "480px",
+        width: "400px", maxWidth: "480px",
         background: COLORS.white,
         borderTop: `2px solid ${COLORS.cream2}`,
         zIndex: 1000,
@@ -1042,7 +1042,7 @@ const MarchePage = ({ user }) => {
                     <div style={{ fontSize: 12, color: COLORS.gray, marginTop: 2 }}>{l.auteur} • {l.ville} • {l.date}</div>
                     <Badge color={COLORS.primary2}>{l.sous_categorie}</Badge>
                   </div>
-                  <div style={{ fontWeight: 900, fontSize: 16, color: COLORS.primary }}>{(l.prix || 0).toLocaleString()} FCFA</div>
+                  <div style={{ fontWeight: 700, fontSize: 16, color: COLORS.primary }}>{(l.prix || 0).toLocaleString()} FCFA</div>
                 </div>
                 {l.description && <div style={{ fontSize: 13, color: COLORS.gray, marginBottom: 10 }}>{l.description}</div>}
                 {l.images && l.images.length > 0 && (
@@ -1089,7 +1089,7 @@ const MarchePage = ({ user }) => {
       )}
       {/* Modal notation vendeur */}
       {noteModal && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:100, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
+        <div style={{ position:"relative", inset:0, background:"rgba(0,0,0,0.5)", zIndex:100, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
           <div style={{ background:COLORS.white, borderRadius:"24px 24px 0 0", padding:24, width:"100%", maxWidth:480 }} className="slide-up">
             <div style={{ fontWeight:800, fontSize:17, color:COLORS.primary, marginBottom:4 }}>⭐ Noter ce vendeur</div>
             <div style={{ fontSize:13, color:COLORS.gray, marginBottom:16 }}>{noteModal.auteur} — {noteModal.titre}</div>
@@ -1100,7 +1100,7 @@ const MarchePage = ({ user }) => {
                   style={{ fontSize:36, background:"none", border:"none", cursor:"pointer", color: s <= noteForm.note ? "#F59E0B" : COLORS.cream2, transition:"all 0.15s" }}>★</button>
               ))}
             </div>
-            <div style={{ textAlign:"center", fontSize:14, fontWeight:800, color:COLORS.amber, marginBottom:14 }}>
+            <div style={{ textAlign:"center", fontSize:14, fontWeight:700, color:COLORS.amber, marginBottom:14 }}>
               {["","Très mauvais","Mauvais","Correct","Bien","Excellent !"][noteForm.note]}
             </div>
             <Textarea label="Commentaire (optionnel)" value={noteForm.commentaire} onChange={e => setNoteForm(p => ({ ...p, commentaire:e.target.value }))} placeholder="Décrivez votre expérience avec ce vendeur..." maxLength={300} />
@@ -1371,11 +1371,11 @@ const GroupesPage = ({ user }) => {
           const estMembre = g.membres.includes(user.id);
           return (
             <Card key={g.id} style={{ marginBottom: 12 }}>
-              <div style={{ fontWeight: 800, fontSize: 16, color: COLORS.primary, marginBottom: 4 }}>{g.nom}</div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: COLORS.primary, marginBottom: 4 }}>{g.nom}</div>
               <div style={{ fontSize: 13, color: COLORS.gray, marginBottom: 8 }}>{g.objectif}</div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
                 <span>{g.membres.length} membre(s)</span>
-                <span style={{ fontWeight: 800, color: COLORS.primary }}>{total.toLocaleString()} / {g.montantCible.toLocaleString()} FCFA</span>
+                <span style={{ fontWeight: 700, color: COLORS.primary }}>{total.toLocaleString()} / {g.montantCible.toLocaleString()} FCFA</span>
               </div>
               <div style={{ background: COLORS.grayLight, borderRadius: 20, height: 10, marginBottom: 12, overflow: "hidden" }}>
                 <div style={{ width: `${pct}%`, height: "100%", background: `linear-gradient(90deg,${COLORS.primary},${COLORS.primary3})`, borderRadius: 20, transition: "width 0.5s" }} />
@@ -1383,9 +1383,9 @@ const GroupesPage = ({ user }) => {
               <div style={{ fontSize: 12, color: COLORS.gray, marginBottom: 10 }}>Créé par {g.createur} • {g.date}</div>
               <div style={{ display: "flex", gap: 8 }}>
                 {estMembre ? (
-                  <div style={{ flex: 1, padding: "10px 0", borderRadius: 12, background: COLORS.green + "15", color: COLORS.green, fontSize: 13, fontWeight: 800, textAlign: "center" }}>✅ Déjà membre</div>
+                  <div style={{ flex: 1, padding: "10px 0", borderRadius: 12, background: COLORS.green + "15", color: COLORS.green, fontSize: 13, fontWeight: 700, textAlign: "center" }}>✅ Déjà membre</div>
                 ) : (
-                  <button onClick={() => rejoindre(g.id)} className="btn-hover" style={{ flex: 1, padding: "10px 0", borderRadius: 12, border: "none", background: COLORS.primary, color: COLORS.white, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>🤝 Rejoindre</button>
+                  <button onClick={() => rejoindre(g.id)} className="btn-hover" style={{ flex: 1, padding: "10px 0", borderRadius: 12, border: "none", background: COLORS.primary, color: COLORS.white, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>🤝 Rejoindre</button>
                 )}
                 <button onClick={() => openWhatsApp(g.coordinateur, `Bonjour, je souhaite rejoindre le groupe "${g.nom}" sur AgriSahel BF`)} style={{ padding: "10px 14px", borderRadius: 12, border: "none", background: "#25D366", color: COLORS.white, cursor: "pointer", fontSize: 16 }}>💬</button>
               </div>
