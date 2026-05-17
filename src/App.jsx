@@ -575,28 +575,48 @@ const BottomNav = ({ active, onChange }) => {
   return (
     <>
       {showMore && (
-        <div style={{ position: "fixed", bottom: 76, left: 0, right: 0, zIndex: 40, background: COLORS.white, borderTop: `1px solid ${COLORS.cream2}`, padding: "12px 8px", display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 4 }}>
+        <div style={{
+          position: "fixed", bottom: 65, left: "50%", transform: "translateX(-50%)",
+          width: "100%", maxWidth: "480px", zIndex: 40,
+          background: COLORS.white, borderTop: `1px solid ${COLORS.cream2}`,
+          padding: "12px 8px", display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 4,
+          boxShadow: "0 -2px 10px rgba(0,0,0,0.08)"
+        }}>
           {moreTabs.map(t => (
-            <button key={t.id} onClick={() => { onChange(t.id); setShowMore(false); }} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "8px 4px", border: "none", borderRadius: 12, cursor: "pointer", background: active === t.id ? COLORS.primary + "15" : "transparent" }}>
-              <span style={{ fontSize: 22 }}>{t.icon}</span>
-              <span style={{ fontSize: 9, fontWeight: 700, color: active === t.id ? COLORS.primary : COLORS.gray }}>{t.label}</span>
+            <button key={t.id} onClick={() => { onChange(t.id); setShowMore(false); }}
+              style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"8px 4px", border:"none", borderRadius:12, cursor:"pointer", background: active===t.id ? COLORS.primary+"15" : "transparent" }}>
+              <span style={{ fontSize:22 }}>{t.icon}</span>
+              <span style={{ fontSize:9, fontWeight:700, color: active===t.id ? COLORS.primary : COLORS.gray }}>{t.label}</span>
             </button>
           ))}
         </div>
       )}
-      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 50, background: COLORS.white, borderTop: `1px solid ${COLORS.cream2}`, display: "flex", padding: "8px 2px 12px", width: "100%" }}>
-        {mainTabs.map(t => (
-          <button key={t.id} onClick={() => { onChange(t.id); setShowMore(false); }} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "6px 4px", border: "none", borderRadius: 12, cursor: "pointer", background: active === t.id ? COLORS.primary + "15" : "transparent", transition: "all 0.15s" }}>
-            <span style={{ fontSize: 22 }}>{t.icon}</span>
-            <span style={{ fontSize: 10, fontWeight: 800, color: active === t.id ? COLORS.primary : COLORS.gray }}>{t.label}</span>
-            {active === t.id && <div style={{ width: 4, height: 4, borderRadius: "50%", background: COLORS.primary }} />}
+      <nav style={{
+        position: "fixed", bottom: 0,
+        left: "50%", transform: "translateX(-50%)",
+        width: "100%", maxWidth: "480px",
+        background: COLORS.white,
+        borderTop: `2px solid ${COLORS.cream2}`,
+        zIndex: 50,
+        paddingBottom: "max(8px, env(safe-area-inset-bottom))",
+        boxShadow: "0 -2px 10px rgba(0,0,0,0.08)"
+      }}>
+        <div style={{ display:"flex", justifyContent:"space-around", padding:"6px 0" }}>
+          {mainTabs.map(t => (
+            <button key={t.id} onClick={() => { onChange(t.id); setShowMore(false); }}
+              style={{ background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, color: active===t.id ? COLORS.primary : COLORS.gray, flex:1, padding:"4px 2px", borderRadius:10, transition:"all 0.15s" }}>
+              <span style={{ fontSize: active===t.id ? 26 : 22 }}>{t.icon}</span>
+              <span style={{ fontSize:10, fontWeight: active===t.id ? 800 : 500 }}>{t.label}</span>
+              {active===t.id && <div style={{ width:4, height:4, borderRadius:"50%", background:COLORS.primary }} />}
+            </button>
+          ))}
+          <button onClick={() => setShowMore(p => !p)}
+            style={{ background: showMore ? COLORS.primary+"15" : "none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, flex:1, padding:"4px 2px", borderRadius:10 }}>
+            <span style={{ fontSize: showMore ? 26 : 22, color: COLORS.gray }}>⋯</span>
+            <span style={{ fontSize:10, fontWeight:500, color:COLORS.gray }}>Plus</span>
           </button>
-        ))}
-        <button onClick={() => setShowMore(p => !p)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "6px 4px", border: "none", borderRadius: 12, cursor: "pointer", background: showMore ? COLORS.primary + "15" : "transparent" }}>
-          <span style={{ fontSize: 22 }}>⋯</span>
-          <span style={{ fontSize: 10, fontWeight: 800, color: COLORS.gray }}>Plus</span>
-        </button>
-      </div>
+        </div>
+      </nav>
     </>
   );
 };
@@ -1948,7 +1968,7 @@ export default function AgriSahelBF() {
     <>
       <GlobalStyle />
       <ToastContainer />
-      <div style={{ width: "100%", margin: "0 auto", minHeight: "100vh", background: COLORS.cream, overflowX: "hidden" }}>
+      <div style={{ maxWidth: "480px", margin: "0 auto", minHeight: "100vh", background: COLORS.cream, paddingBottom: "80px", position: "relative", overflowX: "hidden" }}>
         <TopBar title={pageTitles[tab] || "AgriSahel BF"} user={user} onLogout={handleLogout} />
         <div className="fade-in">{renderTab()}</div>
         <BottomNav active={tab} onChange={setTab} />

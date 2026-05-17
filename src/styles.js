@@ -75,9 +75,10 @@ export const G = {
     marginBottom: 12,
   },
   page: {
-    padding: "16px 16px 100px",
+    padding: "16px 16px 90px",
     width: "100%",
     boxSizing: "border-box",
+    overflowX: "hidden",
   },
 };
 
