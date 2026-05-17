@@ -74,12 +74,14 @@ export const G = {
     color: "#1B4332",
     marginBottom: 12,
   },
-  page: {
-    padding: "12px 16px 20px",
-    width: "100%",
-    boxSizing: "border-box",
-    minHeight: "calc(100vh - 80px)",
-  },
+   page: {
+  padding: "12px 12px 20px",
+  width: "100%",
+  maxWidth: "100%",
+  boxSizing: "border-box",
+  overflowX: "hidden",
+  minHeight: "calc(100vh - 80px)",
+},
 };
 
 export const GLOBAL_CSS = `

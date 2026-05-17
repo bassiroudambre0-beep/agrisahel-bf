@@ -267,8 +267,8 @@ const TabErrorBoundary = ({ children, tabName }) => {
 // ════════════════════════════════════════════════════════
 // UI COMPONENTS
 // ════════════════════════════════════════════════════════
-const Card = ({ children, style = {} }) => <div style={{ ...G.card, width: "100%", boxSizing: "border-box", ...style }}>{children}</div>;
 
+const Card = ({ children, style = {} }) => <div style={{ ...G.card, width: "100%", maxWidth: "100%", overflow: "hidden", boxSizing: "border-box", ...style }}>{children}</div>;
 const Badge = ({ children, color = COLORS.primary }) => (
   <span style={{ background: color + "20", color, fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 20 }}>{children}</span>
 );
