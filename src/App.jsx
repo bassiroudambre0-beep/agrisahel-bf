@@ -12,7 +12,7 @@ import {
 // ════════════════════════════════════════════════════════
 // CONSTANTS & CONFIG
 // ════════════════════════════════════════════════════════
-const APP_VERSION = "4.0";
+const APP_VERSION = "1.0";
 const VILLES_BF = ["Ouagadougou","Bobo-Dioulasso","Koudougou","Banfora","Ouahigouya","Kaya","Dori","Fada N'Gourma","Dédougou","Tenkodogo","Ziniaré","Léo","Gaoua","Kongoussi"];
 const BRUTE_FORCE_MAX = 5;
 
@@ -431,10 +431,10 @@ const AuthPage = ({ onAuth }) => {
 
   if (step === "otp") return (
     <div style={{ minHeight: "100vh", background: `linear-gradient(160deg,${COLORS.primary} 0%,${COLORS.primary2} 100%)`, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div style={{ background: COLORS.white, borderRadius: 28, padding: 24, width: "100%", maxWidth: "100%" }} className="slide-up">
+      <div style={{ background: COLORS.cream, borderRadius: 28, padding: 24, width: "100%", maxWidth: "480px" }} className="slide-up">
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <div style={{ fontSize: 48 }}>📱</div>
-          <h2 style={{ fontFamily: "Fraunces,serif", fontSize: 24, color: COLORS.primary, margin: "12px 0 6px" }}>Code de vérification</h2>
+          <h2 style={{ fontFamily: "Fraunces,serif", fontSize: 24, color: COLORS.primary, margin: "0 auto" }}>Code de vérification</h2>
           <p style={{ fontSize: 14, color: COLORS.gray }}>Code envoyé (mode démo — affiché ici)</p>
           <div style={{ background: COLORS.primary+"15", borderRadius: 12, padding: "12px 16px", marginTop: 12, fontSize: 14, fontWeight: 700, color: COLORS.primary, textAlign:"center" }}>
             📱 Code envoyé par SMS sur votre numéro<br/>
@@ -459,13 +459,13 @@ const AuthPage = ({ onAuth }) => {
 
   return (
     <div style={{ minHeight: "100vh", background: `linear-gradient(160deg,${COLORS.primary} 0%,${COLORS.primary2} 60%,${COLORS.amber} 100%)`, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div style={{ width: "100%", maxWidth: "100%" }} className="slide-up">
+      <div style={{ width: "100%", maxWidth: "480" }} className="slide-up">
         <div style={{ textAlign: "center", marginBottom: 28 }}>
           <div style={{ fontSize: 56 }}>🌾</div>
-          <h1 style={{ fontFamily: "Fraunces,serif", fontSize: 32, color: COLORS.white, margin: "10px 0 4px" }}>AgriSahel BF</h1>
+          <h1 style={{ fontFamily: "Fraunces,serif", fontSize: 32, color: COLORS.white, margin: "0 auto" }}>AgriSahel BF</h1>
           <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 14 }}>Agriculture intelligente pour le Burkina Faso</p>
         </div>
-        <div style={{ background: COLORS.white, borderRadius: 28, padding: "28px 24px" }}>
+        <div style={{ background: COLORS.cream, borderRadius: 28, padding: "28px 24px" }}>
           <div style={{ display: "flex", background: COLORS.grayLight, borderRadius: 14, padding: 4, marginBottom: 24 }}>
             {[["login","Se connecter"],["register","S'inscrire"]].map(([m, l]) => (
               <button key={m} onClick={() => { setMode(m); setErr(""); }} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", fontWeight: 800, fontSize: 14, cursor: "pointer", background: mode === m ? COLORS.white : "transparent", color: mode === m ? COLORS.primary : COLORS.gray, boxShadow: mode === m ? "0 2px 8px rgba(0,0,0,0.1)" : "none", transition: "all 0.2s" }}>{l}</button>
@@ -483,7 +483,7 @@ const AuthPage = ({ onAuth }) => {
           <div style={{ marginBottom: 16, position: "relative" }}>
             <label style={G.label}>Mot de passe</label>
             <input style={G.input} value={form.mdp} onChange={e => set("mdp", e.target.value)} type={showMdp ? "text" : "password"} placeholder="Minimum 6 caractères" />
-            <button onClick={() => setShowMdp(p => !p)} style={{ position: "absolute", right: 14, top: 36, background: "none", border: "none", cursor: "pointer", fontSize: 18 }}>{showMdp ? "🙈" : "👁️"}</button>
+            <button onClick={() => setShowMdp(p => !p)} style={{ position: "relative", right: 14, top: 36, background: "none", border: "none", cursor: "pointer", fontSize: 18 }}>{showMdp ? "🙈" : "👁️"}</button>
           </div>
           {mode === "register" && <Input label="Confirmer le mot de passe" value={form.mdp2} onChange={e => set("mdp2", e.target.value)} type="password" placeholder="Répétez le mot de passe" />}
           {mode === "register" && (
@@ -569,68 +569,65 @@ const TABS = [
 ];
 
 const BottomNav = ({ active, onChange }) => {
-  const [showMore, setShowMore] = useState(false);
-  const mainTabs = TABS.slice(0, 5);
-  const moreTabs = TABS.slice(5);
   return (
-    <>
-      {showMore && (
-        <div style={{
-          position: "fixed", bottom: 65, left: "50%", transform: "translateX(-50%)",
-          width: "100%", maxWidth: "480px", zIndex: 40,
-          background: COLORS.white, borderTop: `1px solid ${COLORS.cream2}`,
-          padding: "12px 8px", display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 4,
-          boxShadow: "0 -2px 10px rgba(0,0,0,0.08)"
-        }}>
-          {moreTabs.map(t => (
-            <button key={t.id} onClick={() => { onChange(t.id); setShowMore(false); }}
-              style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"8px 4px", border:"none", borderRadius:12, cursor:"pointer", background: active===t.id ? COLORS.primary+"15" : "transparent" }}>
-              <span style={{ fontSize:22 }}>{t.icon}</span>
-              <span style={{ fontSize:9, fontWeight:700, color: active===t.id ? COLORS.primary : COLORS.gray }}>{t.label}</span>
-            </button>
-          ))}
-        </div>
-      )}
-      <nav style={{
-        position: "fixed", bottom: 0,
-        left: "50%", transform: "translateX(-50%)",
-        width: "100%", maxWidth: "480px",
-        background: COLORS.white,
-        borderTop: `2px solid ${COLORS.cream2}`,
-        zIndex: 50,
-        paddingBottom: "max(8px, env(safe-area-inset-bottom))",
-        boxShadow: "0 -2px 10px rgba(0,0,0,0.08)"
+    <nav style={{
+      position: "fixed",
+      bottom: 0,
+      left: "50%",
+      transform: "translateX(-50%)",
+      width: "100%",
+      maxWidth: "480px",
+      background: COLORS.white,
+      borderTop: `2px solid ${COLORS.cream2}`,
+      zIndex: 1000,
+      paddingBottom: "max(16px, env(safe-area-inset-bottom))", // Important pour Android + iOS
+      boxShadow: "0 -3px 15px rgba(0,0,0,0.12)",
+      paddingTop: "8px"
+    }}>
+      <div style={{ 
+        display: "flex", 
+        justifyContent: "space-around", 
+        alignItems: "center",
+        padding: "4px 0"
       }}>
-        <div style={{ display:"flex", justifyContent:"space-around", padding:"6px 0" }}>
-          {mainTabs.map(t => (
-            <button key={t.id} onClick={() => { onChange(t.id); setShowMore(false); }}
-              style={{ background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, color: active===t.id ? COLORS.primary : COLORS.gray, flex:1, padding:"4px 2px", borderRadius:10, transition:"all 0.15s" }}>
-              <span style={{ fontSize: active===t.id ? 26 : 22 }}>{t.icon}</span>
-              <span style={{ fontSize:10, fontWeight: active===t.id ? 800 : 500 }}>{t.label}</span>
-              {active===t.id && <div style={{ width:4, height:4, borderRadius:"50%", background:COLORS.primary }} />}
-            </button>
-          ))}
-          <button onClick={() => setShowMore(p => !p)}
-            style={{ background: showMore ? COLORS.primary+"15" : "none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, flex:1, padding:"4px 2px", borderRadius:10 }}>
-            <span style={{ fontSize: showMore ? 26 : 22, color: COLORS.gray }}>⋯</span>
-            <span style={{ fontSize:10, fontWeight:500, color:COLORS.gray }}>Plus</span>
+        {TABS.slice(0, 5).map(t => (   // Tes 5 onglets principaux
+          <button 
+            key={t.id} 
+            onClick={() => onChange(t.id)}
+            style={{
+              background: "none",
+              border: "none",
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "3px",
+              color: active === t.id ? COLORS.primary : COLORS.gray,
+              fontSize: "11px",
+              fontWeight: active === t.id ? "800" : "600",
+              padding: "6px 4px",
+              borderRadius: "10px"
+            }}
+          >
+            <span style={{ fontSize: active === t.id ? "26px" : "22px" }}>{t.icon}</span>
+            <span>{t.label}</span>
           </button>
-        </div>
-      </nav>
-    </>
+        ))}
+      </div>
+    </nav>
   );
 };
 
-// ════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════
 // TAB 1 — DASHBOARD
 // ════════════════════════════════════════════════════════
-const getSeason = () => {
+function getSeason() {
   const m = new Date().getMonth() + 1;
   if (m >= 5 && m <= 9) return { name: "Hivernage", emoji: "🌧️", color: COLORS.blue, tips: ["Semis de sorgho et mil possible", "Surveillez les ravageurs après les premières pluies", "Préparez vos engrais et pesticides"] };
   if (m >= 10 && m <= 11) return { name: "Post-récolte", emoji: "🌾", color: COLORS.amber, tips: ["Période de récolte principale", "Stockez correctement pour éviter les pertes", "Bonne période pour vendre"] };
   if (m >= 12 || m <= 2) return { name: "Saison froide", emoji: "❄️", color: COLORS.blue, tips: ["Maraîchage favorable", "Préparez les champs pour la prochaine saison", "Arrosage réduit nécessaire"] };
   return { name: "Saison sèche", emoji: "☀️", color: COLORS.orange, tips: ["Période difficile — économisez l'eau", "Concentrez-vous sur la vente des stocks", "Planifiez la prochaine saison"] };
-};
+}
 
 const WeatherWidget = ({ ville }) => {
   const [w, setW] = useState(null);
