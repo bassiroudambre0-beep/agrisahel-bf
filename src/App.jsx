@@ -1,4 +1,4 @@
- import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { COLORS, G, GLOBAL_CSS } from "./styles";
 import {
   inscrireUtilisateur, connecterUtilisateur, verifierTelephone,
@@ -347,6 +347,31 @@ const AuthPage = ({ onAuth }) => {
         if (form.mdp !== form.mdp2) { setErr("❌ Les mots de passe ne correspondent pas."); return; }
         if (users.find(u => u.telephone === tel)) { setErr("❌ Ce numéro est déjà inscrit."); return; }
         const code = generateOTP();
+        // Envoyer vrai SMS via Supabase Edge Function
+        setLoading(true);
+        try {
+          const SUPA_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+          const smsResp = await fetch("https://uaaswgpgtaijvkyyocok.supabase.co/functions/v1/send-otp", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${SUPA_KEY}`,
+              "apikey": SUPA_KEY,
+            },
+            body: JSON.stringify({ telephone: tel, code })
+          });
+          const smsData = await smsResp.json();
+          console.log("SMS envoyé:", smsData);
+          if (smsData.success) {
+            toast.success("✅ SMS envoyé sur " + tel + " !");
+          } else {
+            // Fallback mode démo si SMS échoue
+            toast.info("⚠️ SMS indisponible — code affiché en mode démo");
+          }
+        } catch (e) {
+          console.warn("SMS error:", e);
+          toast.info("⚠️ SMS indisponible — code affiché en mode démo");
+        }
         setOtp({ generated: code, input: "", expiry: Date.now() + 5 * 60 * 1000, attempts: 0 });
         setStep("otp");
       } else {
@@ -411,8 +436,18 @@ const AuthPage = ({ onAuth }) => {
           <div style={{ fontSize: 48 }}>📱</div>
           <h2 style={{ fontFamily: "Fraunces,serif", fontSize: 24, color: COLORS.primary, margin: "12px 0 6px" }}>Code de vérification</h2>
           <p style={{ fontSize: 14, color: COLORS.gray }}>Code envoyé (mode démo — affiché ici)</p>
-          <div style={{ background: COLORS.grayLight, borderRadius: 12, padding: "10px 16px", marginTop: 12, fontSize: 28, fontWeight: 900, letterSpacing: 8, color: COLORS.primary }}>{otp.generated}</div>
-          <p style={{ fontSize: 12, color: COLORS.gray, marginTop: 8 }}>Expire dans 5 minutes</p>
+          <div style={{ background: COLORS.primary+"15", borderRadius: 12, padding: "12px 16px", marginTop: 12, fontSize: 14, fontWeight: 700, color: COLORS.primary, textAlign:"center" }}>
+            📱 Code envoyé par SMS sur votre numéro<br/>
+            <span style={{ fontSize:12, color:COLORS.gray, fontWeight:400 }}>Vérifiez vos messages</span>
+          </div>
+          {/* Mode démo — afficher le code si SMS échoue */}
+          {otp.generated && (
+            <details style={{ marginTop:8, textAlign:"center" }}>
+              <summary style={{ fontSize:11, color:COLORS.gray, cursor:"pointer" }}>Mode démo — voir le code</summary>
+              <div style={{ background: COLORS.grayLight, borderRadius: 10, padding: "8px 12px", marginTop:6, fontSize: 24, fontWeight: 900, letterSpacing: 8, color: COLORS.primary }}>{otp.generated}</div>
+            </details>
+          )}
+          <p style={{ fontSize: 12, color: COLORS.gray, marginTop: 8, textAlign:"center" }}>Expire dans 5 minutes</p>
         </div>
         {err && <div style={{ background: "#FEE2E2", borderRadius: 12, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: COLORS.red, fontWeight: 700 }}>{err}</div>}
         <Input label="Entrez le code à 6 chiffres" value={otp.input} onChange={e => setOtp(p => ({ ...p, input: e.target.value.replace(/\D/g, "").slice(0, 6) }))} placeholder="000000" type="text" inputMode="numeric" autoComplete="one-time-code" style={{ ...G.input, textAlign: "center", fontSize: 28, letterSpacing: 8, fontWeight: 900 }} />
@@ -697,9 +732,15 @@ const JournalPage = ({ user, journal, setJournal }) => {
 
   const save = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-  const totalGains = journal.filter(e => e.impact === "gain").reduce((s, e) => s + (e.montant || 0), 0);
-  const totalDep = journal.filter(e => e.impact === "depense").reduce((s, e) => s + (e.montant || 0), 0);
+  const totalGains = journal.filter(e => e.impact === "gain").reduce((s, e) => s + (Number(e.montant) || 0), 0);
+  const totalDep = journal.filter(e => e.impact === "depense").reduce((s, e) => s + (Number(e.montant) || 0), 0);
   const profit = totalGains - totalDep;
+
+  const formatMontant = (val) => {
+    if (val >= 1000000) return `${(val/1000000).toFixed(1)}M`;
+    if (val >= 1000) return `${(val/1000).toFixed(0)}k`;
+    return `${val}`;
+  };
 
   const ajouter = async () => {
     if (!form.description.trim()) { toast.error("Description obligatoire"); return; }
@@ -773,17 +814,25 @@ const JournalPage = ({ user, journal, setJournal }) => {
           { label: "Dépenses", val: totalDep, color: COLORS.red, icon: "📤" },
           { label: "Profit", val: profit, color: profit >= 0 ? COLORS.green : COLORS.red, icon: "💰" },
         ].map(s => (
-          <Card key={s.label} style={{ padding: 12, textAlign: "center" }}>
-            <div style={{ fontSize: 18 }}>{s.icon}</div>
-            <div style={{ fontWeight: 900, fontSize: 13, color: s.color }}>{(s.val / 1000).toFixed(0)}k</div>
-            <div style={{ fontSize: 10, color: COLORS.gray }}>{s.label}</div>
+          <Card key={s.label} style={{ padding: "10px 6px", textAlign: "center" }}>
+            <div style={{ fontSize: 20, marginBottom: 4 }}>{s.icon}</div>
+            <div style={{ fontWeight: 900, fontSize: 14, color: s.color, lineHeight: 1.2 }}>
+              {formatMontant(Math.abs(s.val))}
+              <span style={{ fontSize: 9, fontWeight: 700 }}> FCFA</span>
+            </div>
+            <div style={{ fontSize: 10, color: COLORS.gray, marginTop: 2 }}>{s.label}</div>
           </Card>
         ))}
       </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <button onClick={() => setShowForm(p => !p)} className="btn-hover" style={{ ...G.btn, ...G.btnPrimary, flex: 1, padding: 13 }}>{showForm ? "✕ Annuler" : "✏️ Ajouter"}</button>
-        <button onClick={exporter} style={{ ...G.btn, background: COLORS.grayLight, color: COLORS.primary, flex: 0, padding: "13px 14px" }}>📥</button>
-        <button onClick={partager} style={{ ...G.btn, background: COLORS.grayLight, color: COLORS.primary, flex: 0, padding: "13px 14px" }}>📤</button>
+        <button onClick={() => setShowForm(p => !p)} className="btn-hover"
+          style={{ ...G.btn, ...G.btnPrimary, flex: 1, padding: "13px 10px", fontSize: 14 }}>
+          {showForm ? "✕ Annuler" : "✏️ Nouvelle entrée"}
+        </button>
+        <button onClick={exporter} title="Exporter"
+          style={{ background: COLORS.grayLight, border: "none", borderRadius: 14, padding: "13px 14px", cursor: "pointer", fontSize: 18, flexShrink: 0 }}>📥</button>
+        <button onClick={partager} title="Partager"
+          style={{ background: COLORS.grayLight, border: "none", borderRadius: 14, padding: "13px 14px", cursor: "pointer", fontSize: 18, flexShrink: 0 }}>📤</button>
       </div>
       {showForm && (
         <Card style={{ marginBottom: 16, border: `2px solid ${COLORS.primary}30` }}>
