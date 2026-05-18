@@ -8,6 +8,7 @@ import {
   getGroupements, creerGroupement, rejoindreGroupement,
   estEnLigne, sauvegarderOffline, initialiserSyncAuto,
 } from "./supabaseService";
+import { supabase } from "./supabase";
 
 // ════════════════════════════════════════════════════════
 // CONSTANTS & CONFIG
@@ -22,6 +23,22 @@ const IMG_MAX_SIZE_BYTES = IMG_MAX_SIZE_MB * 1024 * 1024;
 const IMG_MAX_COUNT = 5;
 const IMG_ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const IMG_ALLOWED_EXTS = [".jpg", ".jpeg", ".png", ".webp"];
+const VIDEO_MAX_DURATION_S = 90; // 1min 30sec
+const VIDEO_MAX_SIZE_MB = 50;
+const VIDEO_MAX_SIZE_BYTES = VIDEO_MAX_SIZE_MB * 1024 * 1024;
+const VIDEO_ALLOWED_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
+const SUPABASE_STORAGE_URL = "https://uaaswgpgtaijvkyyocok.supabase.co/storage/v1/object/public/medias";
+
+// Upload fichier vers Supabase Storage
+const uploadToStorage = async (file, folder = "images") => {
+  const ext = file.name.split(".").pop().toLowerCase();
+  const fileName = `${folder}/${Date.now()}_${crypto.randomUUID().slice(0,8)}.${ext}`;
+  const { data, error } = await supabase.storage
+    .from("medias")
+    .upload(fileName, file, { cacheControl: "3600", upsert: false });
+  if (error) throw new Error(error.message);
+  return `${SUPABASE_STORAGE_URL}/${fileName}`;
+};
 
 // Vérification magic bytes (vrais octets du fichier)
 const checkMagicBytes = (file) => new Promise(resolve => {
@@ -184,70 +201,130 @@ const ToastContainer = () => {
 // 📸 COMPOSANT IMAGE UPLOADER RÉUTILISABLE
 // Sécurisé : magic bytes + taille + type + anti-XSS
 // ════════════════════════════════════════════════════════
-const ImageUploader = ({ images, setImages, max = 3, label = "Ajouter des photos (optionnel)" }) => {
+const MediaUploader = ({ medias, setMedias, maxImages = 5, maxVideos = 1, label = "Ajouter des photos/vidéo (optionnel)" }) => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const ref = useRef();
-  const lastUpload = useRef(0);
+  const [uploadProgress, setUploadProgress] = useState("");
+  const imgRef = useRef();
+  const vidRef = useRef();
 
-  const handle = async (e) => {
-    setError("");
+  const images = medias.filter(m => m.type === "image");
+  const videos = medias.filter(m => m.type === "video");
+
+  const handleImages = async (e) => {
+    setError(""); setLoading(true);
     const files = Array.from(e.target.files);
     e.target.value = "";
-    // Rate limit — 2 secondes entre uploads
-    if (Date.now() - lastUpload.current < 2000) { setError("⏳ Attendez avant d'ajouter d'autres photos."); return; }
-    lastUpload.current = Date.now();
-    const slots = max - images.length;
-    if (slots <= 0) { setError(`Maximum ${max} photos atteint.`); return; }
-    setLoading(true);
+    const slots = maxImages - images.length;
+    if (slots <= 0) { setError(`Maximum ${maxImages} photos atteint.`); setLoading(false); return; }
     for (const file of files.slice(0, slots)) {
-      if (!IMG_ALLOWED_TYPES.includes(file.type)) { setError(`❌ Format refusé. JPG, PNG, WEBP uniquement.`); continue; }
-      const ext = "." + file.name.split(".").pop().toLowerCase();
-      if (!IMG_ALLOWED_EXTS.includes(ext)) { setError(`❌ Extension refusée.`); continue; }
-      if (file.size > IMG_MAX_SIZE_BYTES) { setError(`❌ Max ${IMG_MAX_SIZE_MB}MB par image. Celle-ci fait ${(file.size/1024/1024).toFixed(1)}MB.`); continue; }
+      if (!IMG_ALLOWED_TYPES.includes(file.type)) { setError("❌ Format refusé. JPG, PNG, WEBP uniquement."); continue; }
+      if (file.size > IMG_MAX_SIZE_BYTES) { setError(`❌ Max ${IMG_MAX_SIZE_MB}MB par photo.`); continue; }
       const valid = await checkMagicBytes(file);
-      if (!valid) { setError("❌ Fichier invalide ou corrompu."); continue; }
-      const safeName = sanitizeFilename(file.name);
-      const reader = new FileReader();
-      reader.onload = ev => setImages(p => [...p, { id: crypto.randomUUID(), url: ev.target.result, name: safeName }]);
-      reader.readAsDataURL(file);
+      if (!valid) { setError("❌ Fichier invalide."); continue; }
+      try {
+        setUploadProgress("📤 Upload en cours...");
+        const url = await uploadToStorage(file, "images");
+        setMedias(p => [...p, { id: crypto.randomUUID(), url, type: "image", name: sanitizeFilename(file.name) }]);
+        setUploadProgress("");
+      } catch (err) {
+        // Fallback base64 si Storage échoue
+        const reader = new FileReader();
+        reader.onload = ev => setMedias(p => [...p, { id: crypto.randomUUID(), url: ev.target.result, type: "image", name: sanitizeFilename(file.name) }]);
+        reader.readAsDataURL(file);
+        setUploadProgress("");
+      }
     }
     setLoading(false);
   };
 
+  const handleVideo = async (e) => {
+    setError(""); setLoading(true);
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) { setLoading(false); return; }
+    if (!VIDEO_ALLOWED_TYPES.includes(file.type)) { setError("❌ Format vidéo refusé. MP4 uniquement."); setLoading(false); return; }
+    if (file.size > VIDEO_MAX_SIZE_BYTES) { setError(`❌ Vidéo trop lourde. Max ${VIDEO_MAX_SIZE_MB}MB.`); setLoading(false); return; }
+    // Vérifier durée
+    const videoEl = document.createElement("video");
+    videoEl.preload = "metadata";
+    videoEl.src = URL.createObjectURL(file);
+    videoEl.onloadedmetadata = async () => {
+      URL.revokeObjectURL(videoEl.src);
+      if (videoEl.duration > VIDEO_MAX_DURATION_S) {
+        setError(`❌ Vidéo trop longue. Maximum ${VIDEO_MAX_DURATION_S} secondes (1min 30s).`);
+        setLoading(false); return;
+      }
+      try {
+        setUploadProgress("📤 Upload vidéo en cours...");
+        const url = await uploadToStorage(file, "videos");
+        setMedias(p => [...p, { id: crypto.randomUUID(), url, type: "video", name: sanitizeFilename(file.name), duration: Math.round(videoEl.duration) }]);
+        setUploadProgress("");
+      } catch (err) {
+        setError("❌ Erreur upload vidéo. Réessayez.");
+        setUploadProgress("");
+      }
+      setLoading(false);
+    };
+  };
+
   return (
     <div style={{ marginBottom: 14 }}>
-      <label style={G.label}>{label} ({images.length}/{max})</label>
+      <label style={G.label}>{label}</label>
       {error && <div style={{ background:"#FEE2E2", borderRadius:10, padding:"8px 12px", marginBottom:8, fontSize:12, color:COLORS.red, fontWeight:700 }}>{error}</div>}
-      {images.length > 0 && (
+      {uploadProgress && <div style={{ background:"#EFF6FF", borderRadius:10, padding:"8px 12px", marginBottom:8, fontSize:12, color:COLORS.blue, fontWeight:700 }} className="pulse">{uploadProgress}</div>}
+
+      {/* Aperçu médias */}
+      {medias.length > 0 && (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:10 }}>
-          {images.map(img => (
-            <div key={img.id} style={{ position:"relative", borderRadius:12, overflow:"hidden", aspectRatio:"1", border:`2px solid ${COLORS.cream2}` }}>
-              <img src={img.url} alt={img.name} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
-              <button onClick={() => setImages(p => p.filter(x => x.id !== img.id))}
-                style={{ position:"absolute", top:4, right:4, width:22, height:22, borderRadius:"50%", background:"rgba(0,0,0,0.65)", color:"white", border:"none", cursor:"pointer", fontSize:12 }}>✕</button>
+          {medias.map(media => (
+            <div key={media.id} style={{ position:"relative", borderRadius:12, overflow:"hidden", aspectRatio:"1", border:`2px solid ${COLORS.cream2}`, background:"#000" }}>
+              {media.type === "image"
+                ? <img src={media.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                : <div style={{ width:"100%", height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:"#1a1a2e" }}>
+                    <span style={{ fontSize:28 }}>🎥</span>
+                    <span style={{ fontSize:10, color:"white", marginTop:4 }}>{media.duration}s</span>
+                  </div>
+              }
+              <button onClick={() => setMedias(p => p.filter(x => x.id !== media.id))}
+                style={{ position:"absolute", top:4, right:4, width:22, height:22, borderRadius:"50%", background:"rgba(0,0,0,0.7)", color:"white", border:"none", cursor:"pointer", fontSize:12 }}>✕</button>
             </div>
           ))}
         </div>
       )}
-      {images.length < max && (
-        <>
-          <input ref={ref} type="file" accept=".jpg,.jpeg,.png,.webp" multiple onChange={handle} style={{ display:"none" }} />
-          <button type="button" onClick={() => ref.current?.click()}
-            style={{ width:"100%", border:`2px dashed ${COLORS.primary2}`, borderRadius:14, padding:"14px 12px", background:COLORS.primary+"08", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:6, boxSizing:"border-box" }}>
-            {loading
-              ? <span className="pulse" style={{ fontSize:13, color:COLORS.primary2 }}>⏳ Vérification en cours...</span>
-              : <>
-                  <span style={{ fontSize:28 }}>📸</span>
-                  <span style={{ fontSize:13, fontWeight:700, color:COLORS.primary2 }}>Ajouter des photos</span>
-                  <span style={{ fontSize:11, color:COLORS.gray }}>JPG · PNG · WEBP · Max {IMG_MAX_SIZE_MB}MB · {max} photos max</span>
-                </>
-            }
-          </button>
-        </>
-      )}
+
+      {/* Boutons upload */}
+      <div style={{ display:"flex", gap:8 }}>
+        {images.length < maxImages && (
+          <>
+            <input ref={imgRef} type="file" accept=".jpg,.jpeg,.png,.webp" multiple onChange={handleImages} style={{ display:"none" }} />
+            <button type="button" onClick={() => imgRef.current?.click()} disabled={loading}
+              style={{ flex:1, border:`2px dashed ${COLORS.primary2}`, borderRadius:14, padding:"14px 8px", background:COLORS.primary+"08", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:4, boxSizing:"border-box", opacity: loading ? 0.6 : 1 }}>
+              <span style={{ fontSize:24 }}>📸</span>
+              <span style={{ fontSize:12, fontWeight:700, color:COLORS.primary2 }}>Photos</span>
+              <span style={{ fontSize:10, color:COLORS.gray }}>{images.length}/{maxImages} · Max {IMG_MAX_SIZE_MB}MB</span>
+            </button>
+          </>
+        )}
+        {videos.length < maxVideos && (
+          <>
+            <input ref={vidRef} type="file" accept=".mp4,.webm,.mov" onChange={handleVideo} style={{ display:"none" }} />
+            <button type="button" onClick={() => vidRef.current?.click()} disabled={loading}
+              style={{ flex:1, border:`2px dashed ${COLORS.purple}`, borderRadius:14, padding:"14px 8px", background:COLORS.purple+"08", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:4, boxSizing:"border-box", opacity: loading ? 0.6 : 1 }}>
+              <span style={{ fontSize:24 }}>🎥</span>
+              <span style={{ fontSize:12, fontWeight:700, color:COLORS.purple }}>Vidéo</span>
+              <span style={{ fontSize:10, color:COLORS.gray }}>Max 1min 30s</span>
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
+};
+
+// Garde ImageUploader comme alias pour compatibilité
+const ImageUploader = ({ images, setImages, max = 3, label = "Ajouter des photos (optionnel)" }) => {
+  return <MediaUploader medias={images} setMedias={setImages} maxImages={max} maxVideos={0} label={label} />;
 };
 
 const TabErrorBoundary = ({ children, tabName }) => {
@@ -1047,9 +1124,12 @@ const MarchePage = ({ user }) => {
                 {l.description && <div style={{ fontSize: 13, color: COLORS.gray, marginBottom: 10 }}>{l.description}</div>}
                 {l.images && l.images.length > 0 && (
                   <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(l.images.length, 3)},1fr)`, gap:6, marginBottom:10 }}>
-                    {l.images.slice(0,3).map((img,i) => (
-                      <div key={img.id||i} style={{ borderRadius:10, overflow:"hidden", aspectRatio:"1" }}>
-                        <img src={img.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                    {l.images.slice(0,3).map((media,i) => (
+                      <div key={media.id||i} style={{ borderRadius:10, overflow:"hidden", aspectRatio:"1", background:"#000" }}>
+                        {media.type === "video"
+                          ? <video src={media.url} controls style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                          : <img src={media.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={e => e.target.style.display="none"} />
+                        }
                       </div>
                     ))}
                   </div>
@@ -1083,7 +1163,7 @@ const MarchePage = ({ user }) => {
           <Select label="Ville" value={form.ville} onChange={e => save("ville", e.target.value)} options={VILLES_BF} />
           <Input label="Votre numéro WhatsApp" value={form.telephone} onChange={e => save("telephone", e.target.value)} type="tel" placeholder="70 12 34 56" />
           <Textarea label="Description (optionnel)" value={form.description} onChange={e => save("description", sanitize(e.target.value, 500))} placeholder="Détails sur votre annonce..." maxLength={500} />
-          <ImageUploader images={images} setImages={setImages} max={IMG_MAX_COUNT} label="📸 Photos du produit (optionnel)" />
+          <MediaUploader medias={images} setMedias={setImages} maxImages={IMG_MAX_COUNT} maxVideos={1} label="📸🎥 Photos et vidéo du produit (optionnel)" />
           <button onClick={publier} className="btn-hover" style={{ ...G.btn, ...G.btnPrimary }}>📢 Publier l'annonce</button>
         </Card>
       )}
@@ -1218,7 +1298,7 @@ const CommunautePage = ({ user }) => {
             ))}
           </div>
           <Textarea label="Votre message" value={form.texte} onChange={e => setForm(p => ({ ...p, texte: e.target.value }))} placeholder="Partagez une info utile avec la communauté..." maxLength={500} />
-          <ImageUploader images={postImages} setImages={setPostImages} max={3} label="📸 Photos (optionnel)" />
+          <MediaUploader medias={postImages} setMedias={setPostImages} maxImages={3} maxVideos={1} label="📸🎥 Photos/vidéo (optionnel)" />
           <button onClick={publier} className="btn-hover" style={{ ...G.btn, ...G.btnPrimary }}>📢 Publier</button>
         </Card>
       )}
@@ -1263,9 +1343,12 @@ const CommunautePage = ({ user }) => {
               {/* Images */}
               {post.images && post.images.length > 0 && (
                 <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(post.images.length,3)},1fr)`, gap:6, marginBottom:10 }}>
-                  {post.images.slice(0,3).map((img,i) => (
-                    <div key={img.id||i} style={{ borderRadius:10, overflow:"hidden", aspectRatio:"1" }}>
-                      <img src={img.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                  {post.images.slice(0,3).map((media,i) => (
+                    <div key={media.id||i} style={{ borderRadius:10, overflow:"hidden", aspectRatio:"1", background:"#000" }}>
+                      {media.type === "video"
+                        ? <video src={media.url} controls style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                        : <img src={media.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={e => e.target.style.display="none"} />
+                      }
                     </div>
                   ))}
                 </div>
