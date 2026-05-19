@@ -31,13 +31,21 @@ const SUPABASE_STORAGE_URL = "https://uaaswgpgtaijvkyyocok.supabase.co/storage/v
 
 // Upload fichier vers Supabase Storage
 const uploadToStorage = async (file, folder = "images") => {
+  console.log("📤 Upload démarré:", file.name, file.type, file.size);
   const ext = file.name.split(".").pop().toLowerCase();
   const fileName = `${folder}/${Date.now()}_${crypto.randomUUID().slice(0,8)}.${ext}`;
+  console.log("📁 Chemin:", fileName);
   const { data, error } = await supabase.storage
     .from("medias")
     .upload(fileName, file, { cacheControl: "3600", upsert: false });
-  if (error) throw new Error(error.message);
-  return `${SUPABASE_STORAGE_URL}/${fileName}`;
+  console.log("📦 Résultat Storage:", { data, error });
+  if (error) {
+    console.error("❌ Storage error:", error);
+    throw new Error(error.message);
+  }
+  const url = `${SUPABASE_STORAGE_URL}/${fileName}`;
+  console.log("✅ URL générée:", url);
+  return url;
 };
 
 // Vérification magic bytes (vrais octets du fichier)
@@ -226,9 +234,12 @@ const MediaUploader = ({ medias, setMedias, maxImages = 5, maxVideos = 1, label 
         setUploadProgress("📤 Upload en cours...");
         const url = await uploadToStorage(file, "images");
         setMedias(p => [...p, { id: crypto.randomUUID(), url, type: "image", name: sanitizeFilename(file.name) }]);
-        setUploadProgress("");
+        setUploadProgress("✅ Photo uploadée !");
+        setTimeout(() => setUploadProgress(""), 2000);
       } catch (err) {
-        // Fallback base64 si Storage échoue
+        console.error("❌ Upload échoué, fallback base64:", err.message);
+        setError(`⚠️ Upload cloud échoué (${err.message}) — photo sauvegardée localement`);
+        // Fallback base64
         const reader = new FileReader();
         reader.onload = ev => setMedias(p => [...p, { id: crypto.randomUUID(), url: ev.target.result, type: "image", name: sanitizeFilename(file.name) }]);
         reader.readAsDataURL(file);
