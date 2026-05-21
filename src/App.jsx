@@ -32,35 +32,22 @@ const SUPABASE_STORAGE_URL = "https://uaaswgpgtaijvkyyocok.supabase.co/storage/v
 // Upload fichier vers Supabase Storage
 const uploadToStorage = async (file, folder = "images") => {
   console.log("📤 Upload démarré:", file.name, file.type, file.size);
-  
   const ext = file.name.split(".").pop().toLowerCase();
   const fileName = `${folder}/${Date.now()}_${crypto.randomUUID().slice(0,8)}.${ext}`;
-  
-  try {
-    const { data, error } = await supabase.storage
-      .from("medias")
-      .upload(fileName, file, { 
-        cacheControl: "3600", 
-        upsert: true   // ← Important : upsert pour éviter les conflits
-      });
-
-    if (error) {
-      console.error("❌ Storage error:", error);
-      throw new Error(error.message);
-    }
-
-    // Récupère l'URL publique correctement
-    const { data: publicUrl } = supabase.storage
-      .from("medias")
-      .getPublicUrl(fileName);
-
-    console.log("✅ URL publique :", publicUrl.publicUrl);
-    return publicUrl.publicUrl;
-  } catch (err) {
-    console.error("Upload failed:", err);
-    throw err;
+  console.log("📁 Chemin:", fileName);
+  const { data, error } = await supabase.storage
+    .from("medias")
+    .upload(fileName, file, { cacheControl: "3600", upsert: false });
+  console.log("📦 Résultat Storage:", { data, error });
+  if (error) {
+    console.error("❌ Storage error:", error);
+    throw new Error(error.message);
   }
+  const url = `${SUPABASE_STORAGE_URL}/${fileName}`;
+  console.log("✅ URL générée:", url);
+  return url;
 };
+
 // Vérification magic bytes (vrais octets du fichier)
 const checkMagicBytes = (file) => new Promise(resolve => {
   const reader = new FileReader();
@@ -222,7 +209,7 @@ const ToastContainer = () => {
 // 📸 COMPOSANT IMAGE UPLOADER RÉUTILISABLE
 // Sécurisé : magic bytes + taille + type + anti-XSS
 // ════════════════════════════════════════════════════════
- const MediaUploader = ({ medias, setMedias, maxImages = 5, maxVideos = 1, label = "Ajouter des photos/vidéo (optionnel)" }) => {
+const MediaUploader = ({ medias, setMedias, maxImages = 5, maxVideos = 1, label = "Ajouter des photos/vidéo (optionnel)" }) => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
@@ -232,92 +219,97 @@ const ToastContainer = () => {
   const images = medias.filter(m => m.type === "image");
   const videos = medias.filter(m => m.type === "video");
 
-  const handleImages = async (e) => { /* Garde ton code handleImages tel quel */ 
-    // ... (ton code actuel est bon, je ne le recopie pas pour gagner de la place)
+  const handleImages = async (e) => {
+    setError(""); setLoading(true);
+    const files = Array.from(e.target.files);
+    e.target.value = "";
+    const slots = maxImages - images.length;
+    if (slots <= 0) { setError(`Maximum ${maxImages} photos atteint.`); setLoading(false); return; }
+    for (const file of files.slice(0, slots)) {
+      if (!IMG_ALLOWED_TYPES.includes(file.type)) { setError("❌ Format refusé. JPG, PNG, WEBP uniquement."); continue; }
+      if (file.size > IMG_MAX_SIZE_BYTES) { setError(`❌ Max ${IMG_MAX_SIZE_MB}MB par photo.`); continue; }
+      const valid = await checkMagicBytes(file);
+      if (!valid) { setError("❌ Fichier invalide."); continue; }
+      try {
+        setUploadProgress("📤 Upload en cours...");
+        const url = await uploadToStorage(file, "images");
+        setMedias(p => [...p, { id: crypto.randomUUID(), url, type: "image", name: sanitizeFilename(file.name) }]);
+        setUploadProgress("✅ Photo uploadée !");
+        setTimeout(() => setUploadProgress(""), 2000);
+      } catch (err) {
+        console.error("❌ Upload échoué, fallback base64:", err.message);
+        const reader = new FileReader();
+        reader.onload = ev => setMedias(p => [...p, { id: crypto.randomUUID(), url: ev.target.result, type: "image", name: sanitizeFilename(file.name) }]);
+        reader.readAsDataURL(file);
+        setUploadProgress("");
+      }
+    }
+    setLoading(false);
   };
 
-  const handleVideo = async (e) => { /* Garde ton code handleVideo tel quel */ };
-
-  // Fonction pour supprimer un média
-  const removeMedia = (id) => {
-    setMedias(p => p.filter(x => x.id !== id));
+  const handleVideo = async (e) => {
+    setError(""); setLoading(true);
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) { setLoading(false); return; }
+    if (!VIDEO_ALLOWED_TYPES.includes(file.type)) { setError("❌ Format vidéo refusé. MP4 uniquement."); setLoading(false); return; }
+    if (file.size > VIDEO_MAX_SIZE_BYTES) { setError(`❌ Vidéo trop lourde. Max ${VIDEO_MAX_SIZE_MB}MB.`); setLoading(false); return; }
+    const videoEl = document.createElement("video");
+    videoEl.preload = "metadata";
+    videoEl.src = URL.createObjectURL(file);
+    videoEl.onloadedmetadata = async () => {
+      URL.revokeObjectURL(videoEl.src);
+      if (videoEl.duration > VIDEO_MAX_DURATION_S) {
+        setError(`❌ Vidéo trop longue. Maximum 1min 30s.`);
+        setLoading(false); return;
+      }
+      try {
+        setUploadProgress("📤 Upload vidéo en cours...");
+        const url = await uploadToStorage(file, "videos");
+        setMedias(p => [...p, { id: crypto.randomUUID(), url, type: "video", name: sanitizeFilename(file.name), duration: Math.round(videoEl.duration) }]);
+        setUploadProgress("✅ Vidéo uploadée !");
+        setTimeout(() => setUploadProgress(""), 2000);
+      } catch (err) {
+        setError("❌ Erreur upload vidéo: " + err.message);
+        setUploadProgress("");
+      }
+      setLoading(false);
+    };
   };
+
+  const removeMedia = (id) => setMedias(p => p.filter(x => x.id !== id));
 
   return (
     <div style={{ marginBottom: 14 }}>
       <label style={G.label}>{label}</label>
 
       {error && (
-        <div style={{ background: "#FEE2E2", borderRadius: 10, padding: "10px 12px", marginBottom: 10, fontSize: 13, color: COLORS.red, fontWeight: 700 }}>
+        <div style={{ background:"#FEE2E2", borderRadius:10, padding:"10px 12px", marginBottom:10, fontSize:13, color:COLORS.red, fontWeight:700 }}>
           {error}
         </div>
       )}
-
       {uploadProgress && (
-        <div style={{ background: "#EFF6FF", borderRadius: 10, padding: "10px 12px", marginBottom: 10, fontSize: 13, color: COLORS.blue, fontWeight: 700 }} className="pulse">
+        <div style={{ background:"#EFF6FF", borderRadius:10, padding:"10px 12px", marginBottom:10, fontSize:13, color:COLORS.blue, fontWeight:700 }} className="pulse">
           {uploadProgress}
         </div>
       )}
 
-      {/* ==================== APERÇU MÉDIAS ==================== */}
+      {/* Aperçu médias */}
       {medias.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 8, marginBottom: 12 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(100px, 1fr))", gap:8, marginBottom:12 }}>
           {medias.map((media) => (
-            <div key={media.id} style={{
-              position: "relative",
-              borderRadius: 12,
-              overflow: "hidden",
-              aspectRatio: "1 / 1",
-              background: "#000",
-              border: `2px solid ${COLORS.cream2}`
-            }}>
-              {media.type === "video" || (media.url && (media.url.includes(".mp4") || media.url.includes(".webm"))) ? (
-                <video
-                  src={media.url}
-                  controls
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                  onError={(e) => {
-                    e.target.style.display = "none";
-                    console.log("Vidéo impossible à charger:", media.url);
-                  }}
-                />
-              ) : (
-                <img
-                  src={media.url}
-                  alt={media.name || "photo"}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                  onError={(e) => {
-                    e.target.style.display = "none";
-                    console.log("Image impossible à charger:", media.url);
-                  }}
-                />
-              )}
-
-              {/* Bouton supprimer */}
-              <button
-                onClick={() => removeMedia(media.id)}
-                style={{
-                  position: "absolute",
-                  top: 6,
-                  right: 6,
-                  width: 26,
-                  height: 26,
-                  borderRadius: "50%",
-                  background: "rgba(0,0,0,0.75)",
-                  color: "white",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: 14,
-                  zIndex: 10
-                }}
-              >
-                ✕
-              </button>
-
-              {/* Indicateur type */}
+            <div key={media.id} style={{ position:"relative", borderRadius:12, overflow:"hidden", aspectRatio:"1/1", background:"#000", border:`2px solid ${COLORS.cream2}` }}>
+              {media.type === "video" || (media.url && (media.url.includes(".mp4") || media.url.includes(".webm")))
+                ? <video src={media.url} controls style={{ width:"100%", height:"100%", objectFit:"cover" }}
+                    onError={e => { e.target.style.display="none"; console.log("Vidéo impossible à charger:", media.url); }} />
+                : <img src={media.url} alt={media.name||"photo"} style={{ width:"100%", height:"100%", objectFit:"cover" }}
+                    onError={e => { e.target.style.display="none"; console.log("Image impossible à charger:", media.url); }} />
+              }
+              <button onClick={() => removeMedia(media.id)}
+                style={{ position:"absolute", top:6, right:6, width:26, height:26, borderRadius:"50%", background:"rgba(0,0,0,0.75)", color:"white", border:"none", cursor:"pointer", fontSize:14, zIndex:10 }}>✕</button>
               {media.type === "video" && (
-                <div style={{ position: "absolute", bottom: 6, left: 6, background: "rgba(0,0,0,0.7)", color: "white", padding: "2px 6px", borderRadius: 4, fontSize: 10 }}>
-                  🎥 {media.duration ? media.duration + "s" : ""}
+                <div style={{ position:"absolute", bottom:6, left:6, background:"rgba(0,0,0,0.7)", color:"white", padding:"2px 6px", borderRadius:4, fontSize:10 }}>
+                  🎥 {media.duration ? media.duration+"s" : ""}
                 </div>
               )}
             </div>
@@ -325,28 +317,27 @@ const ToastContainer = () => {
         </div>
       )}
 
-      {/* Boutons d'upload */}
-      <div style={{ display: "flex", gap: 8 }}>
+      {/* Boutons upload */}
+      <div style={{ display:"flex", gap:8 }}>
         {images.length < maxImages && (
           <>
-            <input ref={imgRef} type="file" accept=".jpg,.jpeg,.png,.webp" multiple onChange={handleImages} style={{ display: "none" }} />
+            <input ref={imgRef} type="file" accept=".jpg,.jpeg,.png,.webp" multiple onChange={handleImages} style={{ display:"none" }} />
             <button type="button" onClick={() => imgRef.current?.click()} disabled={loading}
-              style={{ flex: 1, border: `2px dashed ${COLORS.primary2}`, borderRadius: 14, padding: "14px 8px", background: COLORS.primary + "08", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-              <span style={{ fontSize: 24 }}>📸</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.primary2 }}>Photos</span>
-              <span style={{ fontSize: 10, color: COLORS.gray }}>{images.length}/{maxImages}</span>
+              style={{ flex:1, border:`2px dashed ${COLORS.primary2}`, borderRadius:14, padding:"14px 8px", background:COLORS.primary+"08", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:4, opacity: loading ? 0.6 : 1 }}>
+              <span style={{ fontSize:24 }}>📸</span>
+              <span style={{ fontSize:12, fontWeight:700, color:COLORS.primary2 }}>Photos</span>
+              <span style={{ fontSize:10, color:COLORS.gray }}>{images.length}/{maxImages}</span>
             </button>
           </>
         )}
-
         {videos.length < maxVideos && (
           <>
-            <input ref={vidRef} type="file" accept=".mp4,.webm,.mov" onChange={handleVideo} style={{ display: "none" }} />
+            <input ref={vidRef} type="file" accept=".mp4,.webm,.mov" onChange={handleVideo} style={{ display:"none" }} />
             <button type="button" onClick={() => vidRef.current?.click()} disabled={loading}
-              style={{ flex: 1, border: `2px dashed ${COLORS.purple}`, borderRadius: 14, padding: "14px 8px", background: COLORS.purple + "08", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-              <span style={{ fontSize: 24 }}>🎥</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.purple }}>Vidéo</span>
-              <span style={{ fontSize: 10, color: COLORS.gray }}>Max 1min 30s</span>
+              style={{ flex:1, border:`2px dashed ${COLORS.purple}`, borderRadius:14, padding:"14px 8px", background:COLORS.purple+"08", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:4, opacity: loading ? 0.6 : 1 }}>
+              <span style={{ fontSize:24 }}>🎥</span>
+              <span style={{ fontSize:12, fontWeight:700, color:COLORS.purple }}>Vidéo</span>
+              <span style={{ fontSize:10, color:COLORS.gray }}>Max 1min 30s</span>
             </button>
           </>
         )}
@@ -354,6 +345,25 @@ const ToastContainer = () => {
     </div>
   );
 };
+// Garde ImageUploader comme alias pour compatibilité
+const ImageUploader = ({ images, setImages, max = 3, label = "Ajouter des photos (optionnel)" }) => {
+  return <MediaUploader medias={images} setMedias={setImages} maxImages={max} maxVideos={0} label={label} />;
+};
+
+const TabErrorBoundary = ({ children, tabName }) => {
+  const [error, setError] = useState(null);
+  if (error) return (
+    <div style={{ ...G.page, textAlign: "center", paddingTop: 60 }}>
+      <div style={{ fontSize: 48 }}>⚠️</div>
+      <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.primary, margin: "16px 0 8px" }}>Erreur dans {tabName}</div>
+      <div style={{ fontSize: 13, color: COLORS.gray, marginBottom: 20 }}>{error.message}</div>
+      <button onClick={() => setError(null)} style={{ ...G.btn, ...G.btnPrimary, width: "auto", padding: "12px 24px" }}>🔄 Réessayer</button>
+    </div>
+  );
+  try { return children; }
+  catch (e) { setError(e); return null; }
+};
+
 // ════════════════════════════════════════════════════════
 // UI COMPONENTS
 // ════════════════════════════════════════════════════════
@@ -1134,37 +1144,19 @@ const MarchePage = ({ user }) => {
                   </div>
                   <div style={{ fontWeight: 900, fontSize: 16, color: COLORS.primary }}>{(l.prix || 0).toLocaleString()} FCFA</div>
                 </div>
-                {medias && medias.length > 0 && (
-  <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(medias.length, 3)},1fr)`, gap:6, marginBottom:10 }}>
-    {medias.map((media, i) => (
-      <div key={media.id || i} style={{ 
-        borderRadius:10, 
-        overflow:"hidden", 
-        aspectRatio:"1", 
-        background:"#000",
-        position: "relative"
-      }}>
-        {media.type === "video" || media.url?.includes(".mp4") || media.url?.includes(".webm") ? (
-          <video 
-            src={media.url} 
-            controls 
-            style={{ width:"100%", height:"100%", objectFit:"cover" }} 
-          />
-        ) : (
-          <img 
-            src={media.url} 
-            alt="" 
-            style={{ width:"100%", height:"100%", objectFit:"cover" }}
-            onError={(e) => {
-              e.target.style.display = "none";
-              console.log("Image failed to load:", media.url);
-            }}
-          />
-        )}
-      </div>
-    ))}
-  </div>
-)}
+                {l.description && <div style={{ fontSize: 13, color: COLORS.gray, marginBottom: 10 }}>{l.description}</div>}
+                {l.images && l.images.length > 0 && (
+                  <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(l.images.length, 3)},1fr)`, gap:6, marginBottom:10 }}>
+                    {l.images.slice(0,3).map((media,i) => (
+                      <div key={media.id||i} style={{ borderRadius:10, overflow:"hidden", aspectRatio:"1", background:"#000" }}>
+                        {media.type === "video"
+                          ? <video src={media.url} controls style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                          : <img src={media.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={e => e.target.style.display="none"} />
+                        }
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {/* Avis */}
                 {avisMap[l.id] && avisMap[l.id].length > 0 && (
                   <div style={{ display:"flex", gap:4, alignItems:"center", marginBottom:8 }}>
@@ -1372,37 +1364,18 @@ const CommunautePage = ({ user }) => {
               {/* Texte */}
               <div style={{ fontSize:14, color:COLORS.dark, lineHeight:1.6, marginBottom:10 }}>{post.texte}</div>
               {/* Images */}
-              {medias && medias.length > 0 && (
-  <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(medias.length, 3)},1fr)`, gap:6, marginBottom:10 }}>
-    {medias.map((media, i) => (
-      <div key={media.id || i} style={{ 
-        borderRadius:10, 
-        overflow:"hidden", 
-        aspectRatio:"1", 
-        background:"#000",
-        position: "relative"
-      }}>
-        {media.type === "video" || media.url?.includes(".mp4") || media.url?.includes(".webm") ? (
-          <video 
-            src={media.url} 
-            controls 
-            style={{ width:"100%", height:"100%", objectFit:"cover" }} 
-          />
-        ) : (
-          <img 
-            src={media.url} 
-            alt="" 
-            style={{ width:"100%", height:"100%", objectFit:"cover" }}
-            onError={(e) => {
-              e.target.style.display = "none";
-              console.log("Image failed to load:", media.url);
-            }}
-          />
-        )}
-      </div>
-    ))}
-  </div>
-)}
+              {post.images && post.images.length > 0 && (
+                <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(post.images.length,3)},1fr)`, gap:6, marginBottom:10 }}>
+                  {post.images.slice(0,3).map((media,i) => (
+                    <div key={media.id||i} style={{ borderRadius:10, overflow:"hidden", aspectRatio:"1", background:"#000" }}>
+                      {media.type === "video"
+                        ? <video src={media.url} controls style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                        : <img src={media.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={e => e.target.style.display="none"} />
+                      }
+                    </div>
+                  ))}
+                </div>
+              )}
               {/* Actions */}
               <div style={{ display:"flex", gap:8 }}>
                 <button onClick={() => partager(post)} style={{ flex:1, padding:"8px 0", borderRadius:10, border:`1px solid ${COLORS.cream2}`, background:COLORS.grayLight, color:COLORS.gray, cursor:"pointer", fontSize:13, fontWeight:700 }}>📋 Copier</button>
