@@ -1,4 +1,5 @@
- import { useState, useEffect, useRef, useCallback } from "react";
+
+import { useState, useEffect, useRef, useCallback } from "react";
 import { COLORS, G, GLOBAL_CSS } from "./styles";
 import {
   inscrireUtilisateur, connecterUtilisateur, verifierTelephone,
@@ -27,7 +28,7 @@ const VIDEO_MAX_DURATION_S = 90; // 1min 30sec
 const VIDEO_MAX_SIZE_MB = 50;
 const VIDEO_MAX_SIZE_BYTES = VIDEO_MAX_SIZE_MB * 1024 * 1024;
 const VIDEO_ALLOWED_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
-const SUPABASE_STORAGE_URL = "https://uaaswgpgtaijvkyyocok.supabase.co/storage/v1/object/public/medias";
+const SUPABASE_STORAGE_URL = "https://kubkobzfnphssufkzonb.supabase.co/storage/v1/object/public/medias";
 
 // Upload fichier vers Supabase Storage
 const uploadToStorage = async (file, folder = "images") => {
@@ -450,8 +451,8 @@ const AuthPage = ({ onAuth }) => {
         // Envoyer vrai SMS via Supabase Edge Function
         setLoading(true);
         try {
-          const SUPA_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-          const smsResp = await fetch("https://uaaswgpgtaijvkyyocok.supabase.co/functions/v1/send-otp", {
+          const SUPA_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1YmtvYnpmbnBoc3N1Zmt6b25iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2Njk2ODEsImV4cCI6MjA5ODI0NTY4MX0.ym68-zHl8vCAGnOzpmGgyFrZRUz8st4IB0EPiX2xFYU");
+          const smsResp = await fetch("https://kubkobzfnphssufkzonb.supabase.co/functions/v1/send-otp", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
