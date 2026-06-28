@@ -1,4 +1,4 @@
-// ══════════════════════════════════════════════════
+ // ══════════════════════════════════════════════════
 // AgriSahel BF — Service Supabase
 // Toutes les fonctions base de données
 // ══════════════════════════════════════════════════
@@ -83,6 +83,7 @@ export const getAnnonces = async (ville = null, categorie = null) => {
     .from('annonces')
     .select(`
       *,
+      images,
       utilisateurs (id, nom, ville, photo_url, reputation_score, nb_avis, verifie)
     `)
     .eq('actif', true)
@@ -97,7 +98,7 @@ export const getAnnonces = async (ville = null, categorie = null) => {
 }
 
 // Publier une annonce
-export const publierAnnonce = async ({ vendeurId, produit, categorie, quantite, prix, description, ville }) => {
+export const publierAnnonce = async ({ vendeurId, produit, categorie, quantite, prix, description, ville, images = [] }) => {
   const { data, error } = await supabase
     .from('annonces')
     .insert([{
@@ -108,6 +109,7 @@ export const publierAnnonce = async ({ vendeurId, produit, categorie, quantite, 
       prix,
       description,
       ville,
+      images: images || [],
     }])
     .select()
     .single()
@@ -176,8 +178,6 @@ export const getJournal = async (utilisateurId, saison = null) => {
 
 // Ajouter une entrée journal
 export const ajouterEntreeJournal = async ({ utilisateurId, type, categorie, montant, description, date }) => {
-  console.log("Supabase → insert journal :", { utilisateurId, type, categorie, montant });
-
   const { data, error } = await supabase
     .from('journal')
     .insert([{
@@ -190,11 +190,9 @@ export const ajouterEntreeJournal = async ({ utilisateurId, type, categorie, mon
       saison: new Date().getFullYear().toString(),
     }])
     .select()
-    .single();
-
-  if (error) console.error("Erreur Supabase détaillée :", error);
-  return { data, error };
-};
+    .single()
+  return { data, error }
+}
 
 // Supprimer une entrée journal
 export const supprimerEntreeJournal = async (entreeId, utilisateurId) => {
@@ -216,6 +214,7 @@ export const getPosts = async (categorie = null, ville = null) => {
     .from('posts')
     .select(`
       *,
+      images,
       utilisateurs (id, nom, photo_url, ville, verifie)
     `)
     .eq('actif', true)
@@ -230,14 +229,16 @@ export const getPosts = async (categorie = null, ville = null) => {
 }
 
 // Publier un post
-export const publierPost = async ({ auteurId, categorie, texte, ville }) => {
+export const publierPost = async ({ auteurId, categorie, texte, ville, images = [] }) => {
   const { data, error } = await supabase
     .from('posts')
     .insert([{
       auteur_id: auteurId,
       categorie,
-      texte: texte.slice(0, 1000), // sécurité longueur
+      texte: texte.slice(0, 1000),
       ville,
+      images: images || [],
+      images: images || [],
     }])
     .select()
     .single()
