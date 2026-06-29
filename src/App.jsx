@@ -1,4 +1,4 @@
- import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { COLORS, G, GLOBAL_CSS } from "./styles";
 import {
   inscrireUtilisateur, connecterUtilisateur, verifierTelephone,
@@ -146,8 +146,9 @@ const sanitize = (str, max = 500) => {
   if (typeof str !== "string") return "";
   return str.slice(0, max)
     .replace(/[<>]/g, "")
-    .replace(/(\bignore\b|\bforget\b|\bsystem\b|\bprompt\b)/gi, "***")
-    .trim();
+    .replace(/(\bignore\b|\bforget\b|\bsystem\b|\bprompt\b)/gi, "***");
+  // Pas de .trim() ici — ça supprimerait l'espace tapé en fin de chaîne
+  // pendant la saisie. Le trim() se fait uniquement à la soumission.
 };
 
 const getBruteForce = (tel) => storage.get(KEYS.ATTEMPTS(tel), { count: 0, lockedUntil: 0 });
@@ -969,7 +970,8 @@ const JournalPage = ({ user, journal, setJournal }) => {
   const ajouter = async () => {
     if (!form.description.trim()) { toast.error("Description obligatoire"); return; }
     const montant = form.impact !== "neutre" ? parseFloat(form.montant) || 0 : 0;
-    const entry = { id: crypto.randomUUID(), ...form, montant, createdAt: Date.now() };
+    const descriptionClean = form.description.trim();
+    const entry = { id: crypto.randomUUID(), ...form, description: descriptionClean, montant, createdAt: Date.now() };
     // Optimistic update
     const newJ = [entry, ...journal];
     setJournal(newJ);
@@ -985,7 +987,7 @@ const JournalPage = ({ user, journal, setJournal }) => {
           type: form.impact === "gain" ? "revenu" : form.impact === "depense" ? "depense" : "activite",
           categorie: form.type,
           montant,
-          description: form.description,
+          description: descriptionClean,
           date: form.date,
         });
         if (data) {
@@ -1165,7 +1167,7 @@ const MarchePage = ({ user }) => {
   const publier = async () => {
     if (!form.titre.trim() || !form.prix) { toast.error("Titre et prix obligatoires"); return; }
     const tempId = crypto.randomUUID();
-    const listing = { id: tempId, ...form, prix: parseInt(form.prix), images, auteur: user.nom, auteurId: user.id, date: new Date().toLocaleDateString("fr-FR"), createdAt: Date.now() };
+    const listing = { id: tempId, ...form, titre: form.titre.trim(), description: form.description.trim(), prix: parseInt(form.prix), images, auteur: user.nom, auteurId: user.id, date: new Date().toLocaleDateString("fr-FR"), createdAt: Date.now() };
     const newL = [listing, ...listings];
     setListings(newL);
     storage.set(KEYS.LISTINGS, newL);
@@ -1177,8 +1179,8 @@ const MarchePage = ({ user }) => {
     if (estEnLigne() && user.id) {
       try {
         const { data, error } = await publierAnnonce({
-          vendeurId: user.id, produit: form.titre, categorie: form.categorie,
-          quantite: "", prix: parseInt(form.prix), description: form.description, ville: form.ville,
+          vendeurId: user.id, produit: form.titre.trim(), categorie: form.categorie,
+          quantite: "", prix: parseInt(form.prix), description: form.description.trim(), ville: form.ville,
           images: images,
         });
         if (data) {
@@ -1504,7 +1506,9 @@ const GroupesPage = ({ user }) => {
   const creer = async () => {
     if (!form.nom.trim() || !form.montantCible) { toast.error("Nom et montant cible obligatoires"); return; }
     const tempId = crypto.randomUUID();
-    const g = { id: tempId, ...form, montantCible: parseInt(form.montantCible), cotisation: parseInt(form.cotisation) || 0, membres: [user.id], createur: user.nom, createurId: user.id, date: new Date().toLocaleDateString("fr-FR"), createdAt: Date.now() };
+    const nomClean = form.nom.trim();
+    const objectifClean = form.objectif.trim();
+    const g = { id: tempId, ...form, nom: nomClean, objectif: objectifClean, montantCible: parseInt(form.montantCible), cotisation: parseInt(form.cotisation) || 0, membres: [user.id], createur: user.nom, createurId: user.id, date: new Date().toLocaleDateString("fr-FR"), createdAt: Date.now() };
     const newG = [g, ...groups];
     setGroups(newG); storage.set(KEYS.GROUPS, newG);
     setShowForm(false);
@@ -1513,9 +1517,9 @@ const GroupesPage = ({ user }) => {
     if (estEnLigne() && user.id) {
       try {
         const { data, error } = await creerGroupement({
-          initiateurId: user.id, produit: form.nom, quantiteCible: 1,
+          initiateurId: user.id, produit: nomClean, quantiteCible: 1,
           unite: "unité", prixEstime: parseInt(form.montantCible),
-          economiePct: 0, description: form.objectif, ville: user.ville,
+          economiePct: 0, description: objectifClean, ville: user.ville,
         });
         if (data) { const up = newG.map(x => x.id === tempId ? { ...x, id: data.id } : x); setGroups(up); storage.set(KEYS.GROUPS, up); }
         if (error) console.warn("Groupe Supabase:", error);
@@ -1857,7 +1861,7 @@ const MicroFinancePage = ({ user, journal }) => {
 
   const ajouter = () => {
     if (!form.montant || !form.objet.trim()) { toast.error("Montant et objet obligatoires"); return; }
-    const r = { id: crypto.randomUUID(), ...form, montant: parseInt(form.montant), statut: "En attente", date: new Date().toLocaleDateString("fr-FR"), createdAt: Date.now() };
+    const r = { id: crypto.randomUUID(), ...form, objet: form.objet.trim(), montant: parseInt(form.montant), statut: "En attente", date: new Date().toLocaleDateString("fr-FR"), createdAt: Date.now() };
     const newR = [r, ...requests];
     setRequests(newR);
     storage.set(priv(user.id, "financing"), newR);
