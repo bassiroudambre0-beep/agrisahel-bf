@@ -1,5 +1,4 @@
-
-import { useState, useEffect, useRef, useCallback } from "react";
+ import { useState, useEffect, useRef, useCallback } from "react";
 import { COLORS, G, GLOBAL_CSS } from "./styles";
 import {
   inscrireUtilisateur, connecterUtilisateur, verifierTelephone,
@@ -51,15 +50,28 @@ const uploadToStorage = async (file, folder = "images") => {
 
 // Vérification magic bytes (vrais octets du fichier)
 const checkMagicBytes = (file) => new Promise(resolve => {
-  const reader = new FileReader();
-  reader.onload = e => {
-    const arr = new Uint8Array(e.target.result);
-    const isJPEG = arr[0]===0xFF && arr[1]===0xD8 && arr[2]===0xFF;
-    const isPNG  = arr[0]===0x89 && arr[1]===0x50 && arr[2]===0x4E && arr[3]===0x47;
-    const isWEBP = arr[0]===0x52 && arr[1]===0x49 && arr[2]===0x46 && arr[3]===0x46;
-    resolve(isJPEG || isPNG || isWEBP);
-  };
-  reader.readAsArrayBuffer(file.slice(0, 4));
+  let resolved = false;
+  const safeResolve = (val) => { if (!resolved) { resolved = true; resolve(val); } };
+  // Timeout de sécurité — ne bloque jamais plus de 3 secondes
+  const timeout = setTimeout(() => safeResolve(true), 3000);
+  try {
+    const reader = new FileReader();
+    reader.onload = e => {
+      clearTimeout(timeout);
+      try {
+        const arr = new Uint8Array(e.target.result);
+        const isJPEG = arr[0]===0xFF && arr[1]===0xD8 && arr[2]===0xFF;
+        const isPNG  = arr[0]===0x89 && arr[1]===0x50 && arr[2]===0x4E && arr[3]===0x47;
+        const isWEBP = arr[0]===0x52 && arr[1]===0x49 && arr[2]===0x46 && arr[3]===0x46;
+        safeResolve(isJPEG || isPNG || isWEBP);
+      } catch { safeResolve(true); }
+    };
+    reader.onerror = () => { clearTimeout(timeout); safeResolve(true); };
+    reader.readAsArrayBuffer(file.slice(0, 4));
+  } catch {
+    clearTimeout(timeout);
+    safeResolve(true);
+  }
 });
 
 // Sanitiser nom de fichier (anti-XSS)
@@ -224,28 +236,34 @@ const MediaUploader = ({ medias, setMedias, maxImages = 5, maxVideos = 1, label 
     setError(""); setLoading(true);
     const files = Array.from(e.target.files);
     e.target.value = "";
-    const slots = maxImages - images.length;
-    if (slots <= 0) { setError(`Maximum ${maxImages} photos atteint.`); setLoading(false); return; }
-    for (const file of files.slice(0, slots)) {
-      if (!IMG_ALLOWED_TYPES.includes(file.type)) { setError("❌ Format refusé. JPG, PNG, WEBP uniquement."); continue; }
-      if (file.size > IMG_MAX_SIZE_BYTES) { setError(`❌ Max ${IMG_MAX_SIZE_MB}MB par photo.`); continue; }
-      const valid = await checkMagicBytes(file);
-      if (!valid) { setError("❌ Fichier invalide."); continue; }
-      try {
-        setUploadProgress("📤 Upload en cours...");
-        const url = await uploadToStorage(file, "images");
-        setMedias(p => [...p, { id: crypto.randomUUID(), url, type: "image", name: sanitizeFilename(file.name) }]);
-        setUploadProgress("✅ Photo uploadée !");
-        setTimeout(() => setUploadProgress(""), 2000);
-      } catch (err) {
-        console.error("❌ Upload échoué, fallback base64:", err.message);
-        const reader = new FileReader();
-        reader.onload = ev => setMedias(p => [...p, { id: crypto.randomUUID(), url: ev.target.result, type: "image", name: sanitizeFilename(file.name) }]);
-        reader.readAsDataURL(file);
-        setUploadProgress("");
+    try {
+      const slots = maxImages - images.length;
+      if (slots <= 0) { setError(`Maximum ${maxImages} photos atteint.`); return; }
+      for (const file of files.slice(0, slots)) {
+        try {
+          if (!IMG_ALLOWED_TYPES.includes(file.type)) { setError("❌ Format refusé. JPG, PNG, WEBP uniquement."); continue; }
+          if (file.size > IMG_MAX_SIZE_BYTES) { setError(`❌ Max ${IMG_MAX_SIZE_MB}MB par photo.`); continue; }
+          const valid = await checkMagicBytes(file);
+          if (!valid) { setError("❌ Fichier invalide."); continue; }
+          setUploadProgress("📤 Upload en cours...");
+          const url = await uploadToStorage(file, "images");
+          setMedias(p => [...p, { id: crypto.randomUUID(), url, type: "image", name: sanitizeFilename(file.name) }]);
+          setUploadProgress("✅ Photo uploadée !");
+          setTimeout(() => setUploadProgress(""), 2000);
+        } catch (err) {
+          console.error("❌ Upload échoué, fallback base64:", err?.message);
+          try {
+            const reader = new FileReader();
+            reader.onload = ev => setMedias(p => [...p, { id: crypto.randomUUID(), url: ev.target.result, type: "image", name: sanitizeFilename(file.name) }]);
+            reader.onerror = () => setError("❌ Impossible de lire cette photo.");
+            reader.readAsDataURL(file);
+          } catch {}
+          setUploadProgress("");
+        }
       }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleVideo = async (e) => {
@@ -258,7 +276,10 @@ const MediaUploader = ({ medias, setMedias, maxImages = 5, maxVideos = 1, label 
     const videoEl = document.createElement("video");
     videoEl.preload = "metadata";
     videoEl.src = URL.createObjectURL(file);
+    // Sécurité : si metadata ne charge jamais, débloquer après 5s
+    const safetyTimeout = setTimeout(() => setLoading(false), 5000);
     videoEl.onloadedmetadata = async () => {
+      clearTimeout(safetyTimeout);
       URL.revokeObjectURL(videoEl.src);
       if (videoEl.duration > VIDEO_MAX_DURATION_S) {
         setError(`❌ Vidéo trop longue. Maximum 1min 30s.`);
@@ -273,9 +294,11 @@ const MediaUploader = ({ medias, setMedias, maxImages = 5, maxVideos = 1, label 
       } catch (err) {
         setError("❌ Erreur upload vidéo: " + err.message);
         setUploadProgress("");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
+    videoEl.onerror = () => { clearTimeout(safetyTimeout); setError("❌ Vidéo invalide."); setLoading(false); };
   };
 
   const removeMedia = (id) => setMedias(p => p.filter(x => x.id !== id));
@@ -349,6 +372,85 @@ const MediaUploader = ({ medias, setMedias, maxImages = 5, maxVideos = 1, label 
 // Garde ImageUploader comme alias pour compatibilité
 const ImageUploader = ({ images, setImages, max = 3, label = "Ajouter des photos (optionnel)" }) => {
   return <MediaUploader medias={images} setMedias={setImages} maxImages={max} maxVideos={0} label={label} />;
+};
+
+// ════════════════════════════════════════════════════════
+// 🎞️ CAROUSEL MÉDIAS — Style Alibaba
+// Grande zone swipeable en haut + indicateurs en bas
+// ════════════════════════════════════════════════════════
+const MediaCarousel = ({ medias = [], height = 220 }) => {
+  const [current, setCurrent] = useState(0);
+  const touchStartX = useRef(0);
+  const touchEndX = useRef(0);
+
+  if (!medias || medias.length === 0) return null;
+
+  const goTo = (idx) => {
+    if (idx < 0) idx = medias.length - 1;
+    if (idx >= medias.length) idx = 0;
+    setCurrent(idx);
+  };
+
+  const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
+  const handleTouchEnd = (e) => {
+    touchEndX.current = e.changedTouches[0].clientX;
+    const diff = touchStartX.current - touchEndX.current;
+    if (Math.abs(diff) > 40) {
+      if (diff > 0) goTo(current + 1); // swipe gauche → suivant
+      else goTo(current - 1); // swipe droite → précédent
+    }
+  };
+
+  const media = medias[current];
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      {/* Zone principale */}
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        style={{ position:"relative", width:"100%", height, borderRadius:14, overflow:"hidden", background:"#0a0a0a" }}
+      >
+        {media.type === "video"
+          ? <video src={media.url} controls style={{ width:"100%", height:"100%", objectFit:"contain", background:"#000" }} />
+          : <img src={media.url} alt="" style={{ width:"100%", height:"100%", objectFit:"contain" }}
+              onError={e => { e.target.style.opacity = "0.2"; }} />
+        }
+
+        {/* Flèches navigation (visible si plusieurs médias) */}
+        {medias.length > 1 && (
+          <>
+            <button onClick={() => goTo(current - 1)}
+              style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", width:32, height:32, borderRadius:"50%", background:"rgba(0,0,0,0.5)", color:"white", border:"none", cursor:"pointer", fontSize:16, display:"flex", alignItems:"center", justifyContent:"center" }}>‹</button>
+            <button onClick={() => goTo(current + 1)}
+              style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)", width:32, height:32, borderRadius:"50%", background:"rgba(0,0,0,0.5)", color:"white", border:"none", cursor:"pointer", fontSize:16, display:"flex", alignItems:"center", justifyContent:"center" }}>›</button>
+          </>
+        )}
+
+        {/* Compteur en haut à droite */}
+        {medias.length > 1 && (
+          <div style={{ position:"absolute", top:8, right:8, background:"rgba(0,0,0,0.6)", color:"white", fontSize:11, fontWeight:700, padding:"3px 9px", borderRadius:12 }}>
+            {current + 1}/{medias.length}
+          </div>
+        )}
+      </div>
+
+      {/* Miniatures cliquables en dessous */}
+      {medias.length > 1 && (
+        <div className="overflow-x" style={{ display:"flex", gap:6, marginTop:8, overflowX:"auto", paddingBottom:2 }}>
+          {medias.map((m, i) => (
+            <button key={m.id || i} onClick={() => goTo(i)}
+              style={{ flexShrink:0, width:48, height:48, borderRadius:8, overflow:"hidden", border: i===current ? `2px solid ${COLORS.primary}` : `2px solid ${COLORS.cream2}`, padding:0, cursor:"pointer", background:"#000", position:"relative" }}>
+              {m.type === "video"
+                ? <div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", background:"#1a1a2e" }}><span style={{ fontSize:16 }}>🎥</span></div>
+                : <img src={m.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={e => e.target.style.opacity="0.2"} />
+              }
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 };
 
 const TabErrorBoundary = ({ children, tabName }) => {
@@ -1146,18 +1248,7 @@ const MarchePage = ({ user }) => {
                   <div style={{ fontWeight: 900, fontSize: 16, color: COLORS.primary }}>{(l.prix || 0).toLocaleString()} FCFA</div>
                 </div>
                 {l.description && <div style={{ fontSize: 13, color: COLORS.gray, marginBottom: 10 }}>{l.description}</div>}
-                {l.images && l.images.length > 0 && (
-                  <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(l.images.length, 3)},1fr)`, gap:6, marginBottom:10 }}>
-                    {l.images.slice(0,3).map((media,i) => (
-                      <div key={media.id||i} style={{ borderRadius:10, overflow:"hidden", aspectRatio:"1", background:"#000" }}>
-                        {media.type === "video"
-                          ? <video src={media.url} controls style={{ width:"100%", height:"100%", objectFit:"cover" }} />
-                          : <img src={media.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={e => e.target.style.display="none"} />
-                        }
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {l.images && l.images.length > 0 && <MediaCarousel medias={l.images} height={200} />}
                 {/* Avis */}
                 {avisMap[l.id] && avisMap[l.id].length > 0 && (
                   <div style={{ display:"flex", gap:4, alignItems:"center", marginBottom:8 }}>
@@ -1365,18 +1456,7 @@ const CommunautePage = ({ user }) => {
               {/* Texte */}
               <div style={{ fontSize:14, color:COLORS.dark, lineHeight:1.6, marginBottom:10 }}>{post.texte}</div>
               {/* Images */}
-              {post.images && post.images.length > 0 && (
-                <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(post.images.length,3)},1fr)`, gap:6, marginBottom:10 }}>
-                  {post.images.slice(0,3).map((media,i) => (
-                    <div key={media.id||i} style={{ borderRadius:10, overflow:"hidden", aspectRatio:"1", background:"#000" }}>
-                      {media.type === "video"
-                        ? <video src={media.url} controls style={{ width:"100%", height:"100%", objectFit:"cover" }} />
-                        : <img src={media.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={e => e.target.style.display="none"} />
-                      }
-                    </div>
-                  ))}
-                </div>
-              )}
+              {post.images && post.images.length > 0 && <MediaCarousel medias={post.images} height={180} />}
               {/* Actions */}
               <div style={{ display:"flex", gap:8 }}>
                 <button onClick={() => partager(post)} style={{ flex:1, padding:"8px 0", borderRadius:10, border:`1px solid ${COLORS.cream2}`, background:COLORS.grayLight, color:COLORS.gray, cursor:"pointer", fontSize:13, fontWeight:700 }}>📋 Copier</button>
