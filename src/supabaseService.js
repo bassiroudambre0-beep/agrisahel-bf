@@ -1,5 +1,4 @@
-
-// ══════════════════════════════════════════════════
+ // ══════════════════════════════════════════════════
 // AgriSahel BF — Service Supabase
 // Toutes les fonctions base de données
 // ══════════════════════════════════════════════════
@@ -85,7 +84,7 @@ export const getAnnonces = async (ville = null, categorie = null) => {
     .select(`
       *,
       images,
-      utilisateurs (id, nom, ville, photo_url, reputation_score, nb_avis, verifie)
+      utilisateurs (id, nom, telephone, ville, photo_url, reputation_score, nb_avis, verifie)
     `)
     .eq('actif', true)
     .gt('date_expiration', new Date().toISOString())

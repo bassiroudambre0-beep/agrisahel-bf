@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+ import { useState, useEffect, useRef, useCallback } from "react";
 import { COLORS, G, GLOBAL_CSS } from "./styles";
 import {
   inscrireUtilisateur, connecterUtilisateur, verifierTelephone,
@@ -168,7 +168,11 @@ const isLocked = (tel) => {
 
 // WhatsApp link — méthode createElement pour Android
 const openWhatsApp = (tel, msg = "") => {
-  const clean = tel.replace(/\D/g, "");
+  const clean = (tel || "").replace(/\D/g, "");
+  if (clean.length < 8) {
+    toast.error("❌ Numéro WhatsApp indisponible pour cette annonce.");
+    return;
+  }
   const num = clean.startsWith("226") ? clean : `226${clean}`;
   const a = document.createElement("a");
   a.href = `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
@@ -1096,16 +1100,16 @@ const JournalPage = ({ user, journal, setJournal }) => {
           const impColor = e.impact === "gain" ? COLORS.green : e.impact === "depense" ? COLORS.red : COLORS.gray;
           return (
             <Card key={e.id} style={{ marginBottom: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <div style={{ display: "flex", gap: 10, flex: 1 }}>
-                  <span style={{ fontSize: 28 }}>{et?.icon}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: COLORS.dark }}>{e.description}</div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                <div style={{ display: "flex", gap: 10, flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: 28, flexShrink: 0 }}>{et?.icon}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: COLORS.dark, wordBreak: "break-word" }}>{e.description}</div>
                     <div style={{ fontSize: 12, color: COLORS.gray, marginTop: 2 }}>{e.date} • {et?.label}</div>
                     {e.impact !== "neutre" && <div style={{ fontSize: 13, fontWeight: 800, color: impColor, marginTop: 4 }}>{e.impact === "gain" ? "+" : "-"}{(e.montant || 0).toLocaleString()} FCFA</div>}
                   </div>
                 </div>
-                <button onClick={() => supprimer(e.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: COLORS.gray, padding: 4 }}>🗑️</button>
+                <button onClick={() => supprimer(e.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: COLORS.gray, padding: 4, flexShrink: 0 }}>🗑️</button>
               </div>
             </Card>
           );
@@ -1241,13 +1245,13 @@ const MarchePage = ({ user }) => {
           {filtered.length === 0 ? <EmptyState emoji="🛒" title="Aucune annonce" subtitle="Soyez le premier à publier !" /> :
             filtered.map(l => (
               <Card key={l.id} style={{ marginBottom: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                  <div>
-                    <div style={{ fontWeight: 800, fontSize: 16, color: COLORS.dark }}>{l.titre}</div>
-                    <div style={{ fontSize: 12, color: COLORS.gray, marginTop: 2 }}>{l.auteur} • {l.ville} • {l.date}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8, gap: 8, width: "100%" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 800, fontSize: 16, color: COLORS.dark, wordBreak: "break-word", overflowWrap: "break-word" }}>{l.titre}</div>
+                    <div style={{ fontSize: 12, color: COLORS.gray, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.auteur} • {l.ville} • {l.date}</div>
                     <Badge color={COLORS.primary2}>{l.sous_categorie}</Badge>
                   </div>
-                  <div style={{ fontWeight: 900, fontSize: 16, color: COLORS.primary }}>{(l.prix || 0).toLocaleString()} FCFA</div>
+                  <div style={{ fontWeight: 900, fontSize: 16, color: COLORS.primary, flexShrink: 0, whiteSpace: "nowrap" }}>{(l.prix || 0).toLocaleString()} FCFA</div>
                 </div>
                 {l.description && <div style={{ fontSize: 13, color: COLORS.gray, marginBottom: 10 }}>{l.description}</div>}
                 {l.images && l.images.length > 0 && <MediaCarousel medias={l.images} height={200} />}
@@ -1450,9 +1454,9 @@ const CommunautePage = ({ user }) => {
                 <div style={{ width:36, height:36, borderRadius:"50%", overflow:"hidden", background:COLORS.primary+"20", border:`2px solid ${COLORS.cream2}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                   {post.photoUrl ? <img src={post.photoUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : <span style={{ fontSize:16 }}>{pt?.icon}</span>}
                 </div>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:13, fontWeight:800, color:pt?.color }}>{pt?.label}</div>
-                  <div style={{ fontSize:11, color:COLORS.gray }}>{post.auteur} • {post.date}</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:13, fontWeight:800, color:pt?.color, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{pt?.label}</div>
+                  <div style={{ fontSize:11, color:COLORS.gray, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{post.auteur} • {post.date}</div>
                 </div>
               </div>
               {/* Texte */}
@@ -1562,9 +1566,9 @@ const GroupesPage = ({ user }) => {
           const estMembre = g.membres.includes(user.id);
           return (
             <Card key={g.id} style={{ marginBottom: 12 }}>
-              <div style={{ fontWeight: 800, fontSize: 16, color: COLORS.primary, marginBottom: 4 }}>{g.nom}</div>
-              <div style={{ fontSize: 13, color: COLORS.gray, marginBottom: 8 }}>{g.objectif}</div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
+              <div style={{ fontWeight: 800, fontSize: 16, color: COLORS.primary, marginBottom: 4, wordBreak: "break-word" }}>{g.nom}</div>
+              <div style={{ fontSize: 13, color: COLORS.gray, marginBottom: 8, wordBreak: "break-word" }}>{g.objectif}</div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6, gap: 8, flexWrap: "wrap" }}>
                 <span>{g.membres.length} membre(s)</span>
                 <span style={{ fontWeight: 800, color: COLORS.primary }}>{total.toLocaleString()} / {g.montantCible.toLocaleString()} FCFA</span>
               </div>
